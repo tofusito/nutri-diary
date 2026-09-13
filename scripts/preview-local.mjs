@@ -1,0 +1,13 @@
+import {MongoMemoryServer} from 'mongodb-memory-server';
+import {MongoClient} from 'mongodb';
+import express from 'express';
+import {createApp,ensureIndexes} from '../server/app.js';
+import {fileURLToPath} from 'node:url';
+const mongo=await MongoMemoryServer.create();
+const client=new MongoClient(mongo.getUri());await client.connect();await ensureIndexes(client);
+const app=createApp(client,{env:{DEV_AUTH_BYPASS:'1'}});
+const dist=fileURLToPath(new URL('../dist',import.meta.url));
+app.use(express.static(dist));app.get('/{*path}',(req,res)=>res.sendFile(`${dist}/index.html`));
+const server=app.listen(Number(process.env.PREVIEW_PORT||3101),'127.0.0.1',()=>console.log(`Temporary test diary: http://127.0.0.1:${server.address().port} (data discarded when this process stops)`));
+const close=async()=>{await new Promise(resolve=>server.close(resolve));await client.close();await mongo.stop();process.exit(0)};
+process.once('SIGINT',close);process.once('SIGTERM',close);

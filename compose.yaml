@@ -1,0 +1,35 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3100:3100"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3100
+      MONGODB_URI: mongodb://mongo:27017
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env}
+      APP_ORIGIN: ${APP_ORIGIN:?Set public HTTPS APP_ORIGIN in .env}
+      USDA_API_KEY: ${USDA_API_KEY:-}
+      OFF_USER_AGENT: ${OFF_USER_AGENT:-NutriDiary/0.1 (personal nutrition diary)}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  mongo:
+    image: mongo:8.0
+    restart: unless-stopped
+    volumes:
+      - nutrition-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  nutrition-data:
