@@ -153,7 +153,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
       <button disabled={saving} onClick={confirm}>{saving ? 'Guardando…' : `Añadir${Object.keys(alsoFor).length ? ` a ${Object.keys(alsoFor).length + 1}` : ''}`}</button></footer>
   </Modal>
 
-  return <Modal title={`Añadir a ${meal}`} onClose={onClose}>
+  return <Modal title={`Añadir a ${meal}`} onClose={onClose} tall>
     <div className="search-row">
       <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar o escribir un código" inputMode="search" />
       <button className="secondary scan-button" onClick={() => setScanner(true)} aria-label="Escanear código de barras"><Icon name="barcode" /></button>

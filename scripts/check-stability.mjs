@@ -111,6 +111,29 @@ try {
   await request(`/api/entries/${polled.id}`, 'DELETE');
   await page.locator('.entry').filter({ hasText: '45 g' }).waitFor({ state: 'detached', timeout: 30_000 });
 
+  // With the keyboard open the visible area is roughly half a phone. The search
+  // sheet has to stay usable in it: the field reachable and the list scrolling
+  // inside the sheet rather than the sheet sliding out of view.
+  for (const height of [844, 420]) {
+    await page.setViewportSize({ width: 390, height });
+    await tab('Hoy');
+    await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
+    const sheet = page.getByRole('dialog');
+    // The sheet slides in; measuring mid-animation reads a transformed box.
+    await sheet.evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
+    const box = await sheet.boundingBox();
+    assert.ok(box.y >= -1, `sheet starts above the viewport at ${height}px`);
+    assert.ok(box.y + box.height <= height + 1, `sheet overflows the viewport at ${height}px`);
+    for (const name of ['Buscar o escribir un código', 'Crear alimento a mano']) {
+      const control = name.startsWith('Buscar') ? page.getByPlaceholder(name) : page.getByRole('button', { name });
+      const rect = await control.boundingBox();
+      assert.ok(rect && rect.y >= 0 && rect.y + rect.height <= height + 1, `"${name}" is off screen at ${height}px`);
+    }
+    assert.ok(await page.locator('.results').evaluate(el => el.scrollHeight >= el.clientHeight), 'results should scroll inside the sheet');
+    await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+
   // Scanning into the barcode field: the camera is denied here, so this drives
   // the manual fallback and checks the code lands back on the form.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -146,5 +169,5 @@ try {
   await zeroMacro.pressSequentially('37');
   assert.equal(await zeroMacro.inputValue(), '37', 'zero macro should be replaced on first typing');
   assert.deepEqual(errors, []);
-  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
+  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; the search sheet fitting a keyboard-sized viewport; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }

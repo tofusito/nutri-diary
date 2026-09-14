@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-export default function Modal({ title, children, onClose }) {
+export default function Modal({ title, children, onClose, tall = false }) {
   const dialog = useRef(null)
   const close = useRef(onClose); close.current = onClose
   useEffect(() => {
@@ -22,5 +22,5 @@ export default function Modal({ title, children, onClose }) {
     document.addEventListener('keydown', keydown)
     return () => { document.body.style.overflow = overflow; document.removeEventListener('keydown', keydown); if (previous?.isConnected) previous.focus() }
   }, [])
-  return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section ref={dialog} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.stopPropagation()}><header><h2>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar">×</button></header>{children}</section></div>
+  return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section ref={dialog} tabIndex={-1} className={`modal ${tall ? 'modal-tall' : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.stopPropagation()}><header><h2>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar">×</button></header>{children}</section></div>
 }
