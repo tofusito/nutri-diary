@@ -185,6 +185,12 @@ try {
     const bounds = await page.getByRole('dialog').boundingBox();
     assert.ok(bounds.y >= offsetTop - 1 && bounds.y + bounds.height <= offsetTop + height + 1, 'sheet must fit the visible viewport');
     assert.ok((await page.locator('.results').boundingBox()).height > 60, 'search results must retain usable space');
+    const backing = await page.locator('.modal-backdrop').evaluate(el => {
+      const style = getComputedStyle(el, '::after');
+      return { color: style.backgroundColor, top: parseFloat(style.top), height: parseFloat(style.height), panelHeight: el.getBoundingClientRect().height };
+    });
+    assert.equal(backing.color, 'rgb(27, 28, 33)', 'keyboard backing must match the sheet, not the black veil');
+    assert.ok(Math.abs(backing.top - backing.panelHeight) <= 1 && backing.height >= 844, 'surface must continue below the visible sheet');
     if (height === 360) await page.screenshot({ path: '/tmp/nutri-keyboard-open.png' });
   }
   await page.screenshot({ path: '/tmp/nutri-keyboard-review.png' });

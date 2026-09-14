@@ -18,7 +18,7 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
   const shift = days => { const next = new Date(`${date}T12:00:00`); next.setDate(next.getDate() + days); setDate(localDate(next)) }
 
   return <main>
-    <div className="diary-brand"><img src="/noodle-192.png" alt="" />Nutri<span>{profile?.name}</span></div>
+    <div className="diary-brand"><img src="/noodle-shadow-192.png" alt="" />Nutri<span>{profile?.name}</span></div>
     <header className="day-head">
       <button className="ghost" onClick={() => shift(-1)} aria-label="Día anterior">‹</button>
       <div><p className="eyebrow">{date === today ? 'HOY' : 'DIARIO'}</p><h1>{longDate(date)}</h1></div>

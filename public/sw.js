@@ -1,5 +1,5 @@
-const CACHE = 'nutri-shell-v5';
-const SHELL = ['/', '/manifest.webmanifest', '/noodle-180.png', '/noodle-192.png', '/noodle-512.png'];
+const CACHE = 'nutri-shell-v6';
+const SHELL = ['/', '/manifest.webmanifest', '/noodle-shadow-180.png', '/noodle-shadow-192.png', '/noodle-shadow-512.png'];
 
 // Without skipWaiting a new worker stays parked until every window closes. A
 // home screen app is suspended rather than closed, so the old one could keep

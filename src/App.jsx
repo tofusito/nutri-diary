@@ -20,7 +20,7 @@ function Login({ onLogin }) {
     event.preventDefault()
     try { await api('/api/login', { method: 'POST', body: JSON.stringify({ password }) }); onLogin() } catch (err) { setError(err.message) }
   }
-  return <main className="login"><img className="brand-icon" src="/noodle-192.png" alt="" /><p className="eyebrow">NUTRI</p><h1>Tu nutrición,<br />en claro.</h1><p>Un diario privado, simple y vuestro.</p>
+  return <main className="login"><img className="brand-icon" src="/noodle-shadow-192.png" alt="" /><p className="eyebrow">NUTRI</p><h1>Tu nutrición,<br />en claro.</h1><p>Un diario privado, simple y vuestro.</p>
     <form className="form" onSubmit={submit}><label>Contraseña<input type="password" autoFocus value={password} onChange={event => setPassword(event.target.value)} /></label><button>Entrar</button>{error && <p className="error">{error}</p>}</form></main>
 }
 
@@ -197,7 +197,7 @@ export default function App() {
   })[tab], [tab, date, entries, profile, profiles, foods, pending, scope, profileId, authProvider])
 
   if (auth === null) return <main className="login"><p className="muted">Cargando tu diario…</p></main>
-  if (!auth && authError) return <main className="login"><img className="brand-icon" src="/noodle-192.png" alt="" /><p className="error" role="alert">{authError}</p><button onClick={() => window.location.reload()}>Reintentar acceso</button></main>
+  if (!auth && authError) return <main className="login"><img className="brand-icon" src="/noodle-shadow-192.png" alt="" /><p className="error" role="alert">{authError}</p><button onClick={() => window.location.reload()}>Reintentar acceso</button></main>
   if (!auth) return <Login onLogin={() => setAuth(true)} />
   if (profiles === null) return <main className="login">{error ? <><p className="error" role="alert">{error}</p><button onClick={load}>Reintentar</button></> : <p className="muted">Cargando perfiles…</p>}</main>
   if (!profile) return <ChooseProfile profiles={profiles} onSelect={selectProfile} onCreate={createProfile} />

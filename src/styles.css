@@ -115,6 +115,8 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
    is the veil and not the diary underneath. */
 .modal-backdrop::before{content:'';position:absolute;inset:-50vh 0;background:#000c;backdrop-filter:blur(3px)}
 .modal-backdrop::before{z-index:-1;pointer-events:none}
+/* Continue the sheet below the visual viewport, behind translucent iOS UI. */
+.modal-backdrop::after{content:'';position:absolute;top:100%;left:0;right:0;height:100lvh;background:var(--surface);pointer-events:none}
 .modal{position:relative;max-width:620px;width:100%;min-height:0;max-height:100%;overflow:auto;display:flex;flex-direction:column;background:var(--surface);
   box-shadow:inset 0 0 0 1px var(--line);border-radius:26px 26px 0 0;padding:18px 18px 26px}
 .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex:none}

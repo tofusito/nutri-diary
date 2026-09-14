@@ -6,6 +6,9 @@
  *  chopsticks lifting three golden noodle curves. Warm off-white background,
  *  generous negative space, bold at small sizes, very subtle ceramic depth. No
  *  text, border, mockup, extra ingredients or emoji aesthetic."
+ *  Edited with built-in image generation: preserve bowl, noodles and chopsticks;
+ *  add a soft warm-gray contact shadow, stronger ceramic shading and a pale
+ *  cream background for contrast. No text, new objects or rounded outer corners.
  *  Run with: npm run icons */
 import { chromium } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -16,6 +19,6 @@ for (const size of [180,192,512]) {
   await page.setViewportSize({width:size,height:size});
   await page.setContent(`<style>html,body{margin:0}img{display:block;width:100vw;height:100vh}</style><img src="data:image/png;base64,${png.toString('base64')}"/>`);
   await page.locator('img').evaluate(image => image.decode());
-  await page.screenshot({path:new URL(`../public/noodle-${size}.png`,import.meta.url).pathname});
+  await page.screenshot({path:new URL(`../public/noodle-shadow-${size}.png`,import.meta.url).pathname});
 }
 await browser.close();
