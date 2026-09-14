@@ -1,3 +1,12 @@
+/** Exports the app icons from public/noodle-master.png.
+ *  The master image was generated from this prompt, kept so the artwork can be
+ *  reproduced in the same style: "Create a finished premium iPhone home screen
+ *  app icon, square full bleed, no rounded outer corners. Minimal Chinese
+ *  noodle bowl: ivory ceramic bowl with a vermilion rim, dark charcoal
+ *  chopsticks lifting three golden noodle curves. Warm off-white background,
+ *  generous negative space, bold at small sizes, very subtle ceramic depth. No
+ *  text, border, mockup, extra ingredients or emoji aesthetic."
+ *  Run with: npm run icons */
 import { chromium } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 const browser = await chromium.launch({headless:true});

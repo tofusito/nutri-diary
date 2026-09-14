@@ -1,48 +1,162 @@
+name: nutri-diary
+
 services:
-  app:
+  nutri-diary:
     build: .
+    image: ${NUTRI_DIARY_IMAGE:-nutri-diary:local}
+    container_name: nutri-diary
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:3100:3100"
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3100
-      MONGODB_URI: mongodb://mongo:27017
-      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env}
-      APP_ORIGIN: ${APP_ORIGIN:?Set public HTTPS APP_ORIGIN in .env}
-      USDA_API_KEY: ${USDA_API_KEY:-}
+      TZ: ${TZ:-Europe/Madrid}
+      APP_ORIGIN: ${APP_ORIGIN:?Set the public HTTPS origin}
+      AUTH_MODE: ${AUTH_MODE:-password}
+      APP_PASSWORD: ${APP_PASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      # Only enforced when both are set; see README.
+      CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:-}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
       OFF_USER_AGENT: ${OFF_USER_AGENT:-NutriDiary/0.1 (personal nutrition diary)}
+      USDA_API_KEY: ${USDA_API_KEY:-}
+      # The application opens the nutrition_catalog and nutrition_tracking
+      # databases over this connection; the user authenticates against admin.
+      MONGODB_URI: mongodb://${MONGO_APP_USERNAME}:${MONGO_APP_PASSWORD}@nutri-diary-mongo:27017/?authSource=admin
     depends_on:
-      mongo:
+      nutri-diary-mongo:
         condition: service_healthy
+    expose:
+      - "3100"
+    networks:
+      - frontend
+      - backend
+    labels:
+      autoheal: "true"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(b=>process.exit(b.ok?0:1)).catch(()=>process.exit(1))
       interval: 30s
       timeout: 5s
       retries: 3
-  # Opt-in: `docker compose --profile tunnel up -d`. Routes the public hostname
-  # to http://app:3100 inside the compose network. With a host-installed
-  # cloudflared, skip this service and point the tunnel at 127.0.0.1:3100.
-  cloudflared:
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+
+  nutri-diary-mongo:
+    image: mongo:8.0.28-noble
+    container_name: nutri-diary-mongo
+    restart: unless-stopped
+    command:
+      - mongod
+      - --bind_ip_all
+      - --wiredTigerCacheSizeGB
+      - "0.25"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: admin
+      MONGO_APP_USERNAME: ${MONGO_APP_USERNAME}
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD}
+    volumes:
+      - ${MONGO_DATA_PATH:-./data/mongo}:/data/db
+      - ./mongo-init.sh:/docker-entrypoint-initdb.d/10-create-app-user.sh:ro
+    networks:
+      - backend
+    labels:
+      autoheal: "true"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --host 127.0.0.1
+          --username "$$MONGO_INITDB_ROOT_USERNAME"
+          --password "$$MONGO_INITDB_ROOT_PASSWORD"
+          --authenticationDatabase admin
+          --eval 'quit(db.adminCommand({ ping: 1 }).ok ? 0 : 2)'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+
+  nutri-diary-backup:
+    image: mongo:8.0.28-noble
+    container_name: nutri-diary-backup
+    restart: unless-stopped
+    command:
+      - /opt/nutri-diary/backup-mongo.sh
+    environment:
+      TZ: ${TZ:-Europe/Madrid}
+      MONGODB_HOST: nutri-diary-mongo
+      MONGODB_USERNAME: ${MONGO_APP_USERNAME}
+      MONGODB_PASSWORD: ${MONGO_APP_PASSWORD}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    depends_on:
+      nutri-diary-mongo:
+        condition: service_healthy
+    volumes:
+      - ${BACKUP_PATH:-./data/backups}:/backups
+      - ./backup-mongo.sh:/opt/nutri-diary/backup-mongo.sh:ro
+    networks:
+      - backend
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -s /backups/.last-success && test $$(( $$(date +%s) - $$(date -r /backups/.last-success +%s) )) -lt 93600
+      interval: 5m
+      timeout: 5s
+      retries: 2
+      start_period: 3m
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+
+  cloudflare:
     image: cloudflare/cloudflared:latest
+    container_name: cloudflare-nutri-diary
+    # Opt-in: without a token cloudflared restarts forever, so it stays out of a
+    # plain `up -d`. Set COMPOSE_PROFILES=tunnel in .env to include it there.
     profiles: ["tunnel"]
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Set TUNNEL_TOKEN in .env to run the tunnel}
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
     depends_on:
-      app:
-        condition: service_started
-  mongo:
-    image: mongo:8.0
-    restart: unless-stopped
-    volumes:
-      - nutrition-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-volumes:
-  nutrition-data:
+      nutri-diary:
+        condition: service_healthy
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+
+networks:
+  frontend:
+    name: nutri-diary-frontend
+    driver: bridge
+  backend:
+    name: nutri-diary-backend
+    driver: bridge
+    internal: true

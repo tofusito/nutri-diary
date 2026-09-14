@@ -71,13 +71,22 @@ Want to poke at it without installing MongoDB? `npm run build && node scripts/pr
 | `npm test` | Arithmetic and API tests, against a real temporary MongoDB |
 | `npm run check` | Drives the UI in a browser: bad input, failed saves, offline, four widths |
 | `npm run screenshots` | Regenerates the images above from a seeded diary |
-| `npm run icons` | Rebuilds the PNG icons from `public/icon.svg` |
+| `npm run icons` | Rebuilds the app icons from `public/noodle-master.png` |
 
 ## Self-hosting
 
-`compose.yaml` brings up the app, MongoDB on a named volume, a daily backup job and an optional Cloudflare Tunnel connector. Set a strong `APP_PASSWORD` and the real public `APP_ORIGIN`, then `docker compose up -d --build`. The app binds to `127.0.0.1:3100`; MongoDB publishes nothing.
+`compose.yaml` is the whole stack: the app, an authenticated MongoDB, a daily backup job and an optional Cloudflare Tunnel connector. It is the same file that runs in production — there is no second, truer copy elsewhere.
 
-The tunnel sits behind the `tunnel` Compose profile, so a plain `up -d` will not start it — use `docker compose --profile tunnel up -d cloudflare`, or set `COMPOSE_PROFILES=tunnel`. With a host-installed cloudflared, route the hostname to `http://127.0.0.1:3100` instead; inside compose the target is `http://app:3100`, because localhost in that container is the wrong container. Creating the tunnel and its DNS record is a manual step this repository does not perform.
+```sh
+cp .env.example .env      # fill in the passwords and APP_ORIGIN
+docker compose up -d --build
+```
+
+**No service publishes a host port.** The app and MongoDB share an internal network that has no route out; a second network exists only so the tunnel connector can reach the app and so the app can reach Open Food Facts. The app runs read-only with `no-new-privileges` and memory, CPU and process limits, and MongoDB is reachable only with the application credentials, scoped to the two databases and nothing else.
+
+Because nothing is published, you need an ingress. The tunnel connector sits behind the `tunnel` Compose profile, so a plain `up -d` will not start it — use `docker compose --profile tunnel up -d cloudflare`, or set `COMPOSE_PROFILES=tunnel`. With a host-installed cloudflared instead, point the hostname at the app container. Creating the tunnel and its DNS record is a manual step this repository does not perform.
+
+State lives where `MONGO_DATA_PATH` and `BACKUP_PATH` say, `./data/...` by default. Containers carry the `autoheal` label, so a [willfarrell/autoheal](https://github.com/willfarrell/docker-autoheal) sidecar will restart them when a health check fails.
 
 A tunnel gives you transport, not identity. Put [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/) in front and set `AUTH_MODE=cloudflare`; add `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` and the origin verifies the assertion Access attaches to every allowed request, so a policy that gets removed becomes a 403 instead of an open diary. The audience tag is the `kid` parameter of the Access login redirect for your hostname. Keep the API uncached at the edge; never add a Cache Everything rule to it.
 
