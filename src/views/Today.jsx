@@ -31,7 +31,10 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
         const left = remaining(totals[key], goal[key])
         return <div className={`total tone-${tone}`} key={key}>
           <span className="total-label">{label}</span>
-          <strong>{nutrientText(totals[key])}<small>/{nutrientText(goal[key])}{unit === 'g' ? 'g' : ''}</small></strong>
+          <div className="total-values">
+            <strong className="total-current">{nutrientText(totals[key])}{unit ? ` ${unit}` : ''}</strong>
+            <span className="total-goal">{goal[key] ? `de ${nutrientText(goal[key])}${unit ? ` ${unit}` : ''}` : 'sin objetivo'}</span>
+          </div>
           <div className="total-bar"><i className={left > 0 ? 'over' : ''} style={{ width: `${totals[key] == null || !goal[key] ? 0 : Math.min(100, totals[key] / goal[key] * 100)}%` }} /></div>
           <span className={`left ${left == null ? 'none' : left > 0 ? 'over' : 'under'}`}>{left == null ? (goal[key] ? '—' : 'sin objetivo') : `${remainingText(left)}${unit === 'g' ? ' g' : ''}`}</span>
         </div>
