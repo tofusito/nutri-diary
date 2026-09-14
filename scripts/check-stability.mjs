@@ -97,10 +97,40 @@ try {
       await tab(name); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `overflow ${name} ${width}`);
     }
   }
+  // Scanning into the barcode field: the camera is denied here, so this drives
+  // the manual fallback and checks the code lands back on the form.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await tab('Alimentos');
+  await page.getByRole('button', { name: '+ Nuevo', exact: true }).click();
+  await page.getByRole('button', { name: 'Escanear el código de barras', exact: true }).click();
+  const manual = page.getByPlaceholder('O escribe el código');
+  await manual.waitFor();
+  await manual.fill('8410014477743');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await manual.waitFor({ state: 'hidden' });
+  assert.equal(await page.getByPlaceholder('Escanéalo o escríbelo').inputValue(), '8410014477743', 'scanned code did not reach the form');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+
+  // Deleting a profile only appears once a second one exists, so it can never
+  // remove the last diary.
+  await request('/api/profiles', 'POST', { name: 'Segundo perfil', carbs: 10, protein: 10, fat: 10 });
+  await page.reload(); await page.getByRole('navigation').waitFor({ state: 'visible' });
+  await tab('Perfil');
+
+  // The destructive profile action must stay locked until the name is typed.
+  await page.getByRole('button', { name: /^Eliminar el perfil/ }).click();
+  const confirmDelete = page.locator('.danger-panel').getByRole('button', { name: 'Eliminar', exact: true });
+  assert.ok(await confirmDelete.isDisabled(), 'delete enabled before confirming the name');
+  await page.locator('.danger-panel input').fill('Perfil');
+  assert.ok(await confirmDelete.isDisabled(), 'delete enabled on a partial name');
+  await page.locator('.danger-panel input').fill((await request('/api/profiles'))[0].name);
+  assert.ok(await confirmDelete.isEnabled(), 'delete stayed locked with the exact name');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+
   const zeroMacro = page.getByLabel('Hidratos', { exact: true });
   await zeroMacro.click();
   await zeroMacro.pressSequentially('37');
   assert.equal(await zeroMacro.inputValue(), '37', 'zero macro should be replaced on first typing');
   assert.deepEqual(errors, []);
-  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; no uncaught errors.');
+  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }

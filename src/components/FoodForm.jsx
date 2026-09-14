@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { emptyFood, number, selectZero } from '../lib/nutrition.js'
 import { recognizeLabel } from '../lib/ocr.js'
 import QrCode from './QrCode.jsx'
+import Icon from './Icon.jsx'
+import Scanner from './Scanner.jsx'
 
 const fields = [['kcal', 'kcal'], ['carbs', 'Hidratos'], ['protein', 'Proteínas'], ['fat', 'Grasas']]
 
@@ -14,6 +16,7 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const [error, setError] = useState('')
   const set = (key, value) => setFood(previous => ({ ...previous, [key]: value }))
   const nutrient = (key, value) => setFood(previous => ({ ...previous, nutrients: { ...previous.nutrients, [key]: number(value) } }))
@@ -34,12 +37,14 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
   }
   const unit = food.basis === 'ml' ? 'ml' : 'g'
 
-  return <form className="form" onSubmit={submit}>
+  return <>
+  <form className="form" onSubmit={submit}>
     <label>Nombre<input required autoFocus={!food.name} value={food.name} onChange={event => set('name', event.target.value)} placeholder="Ej. Yogur griego natural" /></label>
-    <div className="two-col">
-      <label>Código de barras<input inputMode="numeric" value={food.barcode || ''} onChange={event => set('barcode', event.target.value)} placeholder="Opcional" /></label>
-      <label>Se mide en<select value={food.basis} onChange={event => set('basis', event.target.value)}><option value="g">gramos</option><option value="ml">mililitros</option></select></label>
-    </div>
+    <label>Código de barras<span className="scan-field">
+      <input inputMode="numeric" value={food.barcode || ''} onChange={event => set('barcode', event.target.value)} placeholder="Escanéalo o escríbelo" />
+      <button type="button" className="secondary scan-button" onClick={() => setScanning(true)} aria-label="Escanear el código de barras"><Icon name="barcode" />Escanear</button>
+    </span></label>
+    <label>Se mide en<select value={food.basis} onChange={event => set('basis', event.target.value)}><option value="g">gramos</option><option value="ml">mililitros</option></select></label>
     <fieldset><legend>Por 100 {unit}</legend>
       <div className="macro-inputs">{fields.map(([key, label]) =>
         <label key={key}>{label}<input aria-label={label} type="number" min="0" step="0.1" inputMode="decimal" value={food.nutrients[key] ?? ''} onFocus={selectZero} onChange={event => nutrient(key, event.target.value)} /></label>)}</div>
@@ -73,4 +78,6 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
     {error && <p className="error" role="alert">{error}</p>}
     <footer className="form-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="submit" disabled={saving || loading}>{saving ? 'Guardando…' : 'Guardar alimento'}</button></footer>
   </form>
+  {scanning && <Scanner onResult={code => { set('barcode', code); setScanning(false) }} onClose={() => setScanning(false)} />}
+  </>
 }

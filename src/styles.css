@@ -320,3 +320,8 @@ button.danger{background:#3a221f;color:#ffb3a7;box-shadow:inset 0 0 0 1px #5a312
 .icon-action.danger:hover,.icon-action.danger[aria-expanded=true]{color:var(--over);box-shadow:inset 0 0 0 1px #5a3129}
 .danger-panel input{width:100%;background:#201917;border:1px solid #5a3129;border-radius:10px;padding:10px;color:var(--text)}
 .danger-panel b{color:#ffb3a7}
+
+.scan-field{display:flex;gap:8px}
+.scan-field input{flex:1;min-width:0}
+.scan-button{flex:none;display:flex;align-items:center;gap:7px;padding:0 15px;font-size:12px}
+.scan-button svg{width:21px;height:21px;display:block}

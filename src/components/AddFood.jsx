@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api.js'
 import { nutrientText, emptyFood, scaleNutrients, selectZero } from '../lib/nutrition.js'
+import Icon from './Icon.jsx'
 import Macros from './Macros.jsx'
 import Modal from './Modal.jsx'
 import Scanner from './Scanner.jsx'
@@ -155,7 +156,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   return <Modal title={`Añadir a ${meal}`} onClose={onClose}>
     <div className="search-row">
       <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar o escribir un código" inputMode="search" />
-      <button className="secondary" onClick={() => setScanner(true)} aria-label="Escanear código de barras">⛶</button>
+      <button className="secondary scan-button" onClick={() => setScanner(true)} aria-label="Escanear código de barras"><Icon name="barcode" /></button>
     </div>
     {barcode && barcode === query.trim() && !loading && <p className="barcode-note">Código <b>{barcode}</b> · {mine.length + external.length
       ? `${mine.length + external.length} producto(s). Un mismo código puede estar reutilizado en varios productos: revísalo antes de elegir.`
