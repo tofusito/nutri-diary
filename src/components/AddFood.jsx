@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api.js'
-import { nutrientText, emptyFood, scaleNutrients } from '../lib/nutrition.js'
+import { nutrientText, emptyFood, scaleNutrients, selectZero } from '../lib/nutrition.js'
 import Macros from './Macros.jsx'
 import Modal from './Modal.jsx'
 import Scanner from './Scanner.jsx'
@@ -101,7 +101,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
       <div className="food-macros">por 100 {chosen.basis} · {nutrientText(chosen.nutrients.kcal)} kcal <Macros nutrients={chosen.nutrients} /></div>
     </div>
     <div className="quantity-row"><button className="secondary" onClick={() => setQuantity(q => Math.max(1, Number(q) - 10))}>−10</button>
-      <input type="number" min="1" inputMode="numeric" value={quantity} onChange={e => setQuantity(e.target.value)} aria-label="Cantidad" />
+      <input type="number" min="1" inputMode="numeric" value={quantity} onFocus={selectZero} onChange={e => setQuantity(e.target.value)} aria-label="Cantidad" />
       <span>{chosen.basis}</span><button className="secondary" onClick={() => setQuantity(q => Number(q) + 10)}>+10</button></div>
     <div className="portion-row">{[30, 50, 100, 150, 200, 250].map(size => <button key={size} className="chip" onClick={() => setQuantity(size)}>{size}</button>)}</div>
     <div className="chosen-total">
@@ -122,7 +122,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
               })} /> {item.name}
           </label>
           {grams !== undefined && <span className="also-amount">
-            <input type="number" min="1" inputMode="numeric" aria-label={`Cantidad para ${item.name}`}
+            <input type="number" min="1" inputMode="numeric" onFocus={selectZero} aria-label={`Cantidad para ${item.name}`}
               value={grams} onChange={event => setAlsoFor(current => ({ ...current, [item.id]: event.target.value }))} />
             {chosen.basis}
             <small>{nutrientText(scaleNutrients(chosen.nutrients, validQuantity(grams) ? Number(grams) : 0).kcal)} kcal</small>

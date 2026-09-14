@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { estimateEnergy, macroCalories, number } from '../lib/nutrition.js'
+import { estimateEnergy, macroCalories, number, selectZero } from '../lib/nutrition.js'
 
 const activities = [[1.2, 'Sedentario', 'poco o nada de ejercicio'], [1.375, 'Ligera', '1-3 días por semana'], [1.55, 'Moderada', '3-5 días por semana'], [1.725, 'Alta', '6-7 días por semana'], [1.9, 'Muy alta', 'trabajo físico o doble sesión']]
 const blank = name => ({ id: crypto.randomUUID(), name, carbs: 0, protein: 0, fat: 0, sex: 'male', activity: 1.55 })
@@ -64,7 +64,7 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
         <p className="muted">Las calorías salen de tus macros: 4 kcal/g de hidratos y proteína, 9 kcal/g de grasa.</p>
         <div className="kcal-result"><strong>{kcal} kcal</strong><span>objetivo de {draft.name || 'este perfil'}</span></div>
         <div className="macro-inputs">{[['carbs', 'Hidratos'], ['protein', 'Proteínas'], ['fat', 'Grasas']].map(([key, label]) =>
-          <label key={key}>{label}<input aria-label={label} required type="number" min="0" step="any" inputMode="decimal" value={draft[key] ?? ''} onChange={event => set(key, event.target.value)} /><small>gramos</small></label>)}</div>
+          <label key={key}>{label}<input aria-label={label} required type="number" min="0" step="any" inputMode="decimal" value={draft[key] ?? ''} onFocus={selectZero} onChange={event => set(key, event.target.value)} /><small>gramos</small></label>)}</div>
       </section>
 
       <section>

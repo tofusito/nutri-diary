@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { emptyFood, number } from '../lib/nutrition.js'
+import { emptyFood, number, selectZero } from '../lib/nutrition.js'
 import { recognizeLabel } from '../lib/ocr.js'
 import QrCode from './QrCode.jsx'
 
@@ -41,7 +41,7 @@ export default function FoodForm({ initial, onSave, onCancel }) {
     </div>
     <fieldset><legend>Por 100 {unit}</legend>
       <div className="macro-inputs">{fields.map(([key, label]) =>
-        <label key={key}>{label}<input aria-label={label} type="number" min="0" step="0.1" inputMode="decimal" value={food.nutrients[key] ?? ''} onChange={event => nutrient(key, event.target.value)} /></label>)}</div>
+        <label key={key}>{label}<input aria-label={label} type="number" min="0" step="0.1" inputMode="decimal" value={food.nutrients[key] ?? ''} onFocus={selectZero} onChange={event => nutrient(key, event.target.value)} /></label>)}</div>
       <p className="muted">Copia los valores de la etiqueta. Deja en blanco lo que no venga: se guarda como desconocido, no como cero.</p>
     </fieldset>
     <p className="muted">Se guarda en la biblioteca común: lo verán todos los perfiles.</p>
@@ -50,7 +50,7 @@ export default function FoodForm({ initial, onSave, onCancel }) {
       <summary>Más opciones</summary>
       <div className="two-col">
         <label>Marca<input value={food.brand || ''} onChange={event => set('brand', event.target.value)} /></label>
-        <label>Ración habitual ({unit})<input type="number" min="0" step="1" value={food.servingSize || ''} onChange={event => set('servingSize', number(event.target.value))} /></label>
+        <label>Ración habitual ({unit})<input type="number" min="0" step="1" value={food.servingSize || ''} onFocus={selectZero} onChange={event => set('servingSize', number(event.target.value))} /></label>
       </div>
       <label className="check"><input type="checkbox" checked={Boolean(food.favorite)} onChange={event => set('favorite', event.target.checked)} /> Favorito</label>
       <label className="upload">{loading ? 'Leyendo etiqueta…' : 'Leer etiqueta con la cámara'}<input type="file" accept="image/*" capture="environment" onChange={event => scanLabel(event.target.files?.[0])} /></label>
