@@ -327,7 +327,7 @@ input,select,textarea{scroll-margin-bottom:120px}
   nav{background:linear-gradient(140deg,#353640b8,#1e1f28cc);-webkit-backdrop-filter:blur(24px) saturate(150%);backdrop-filter:blur(24px) saturate(150%)}
 }
 @media(hover:hover){button:not(:disabled):hover{filter:brightness(1.12)}}
-@media(max-width:480px){input,select,textarea,.macro-inputs input{font-size:16px}.total-current{font-size:18px}.total-goal{font-size:9px}.totals{gap:10px;padding:18px 14px}}
+@media(max-width:480px){input,select,textarea,.macro-inputs input{font-size:16px}.total-current{font-size:18px}.total-goal{font-size:10px}.totals{gap:10px;padding:18px 14px}}
 @media(min-width:700px){.modal-backdrop{align-items:center;padding:24px}.modal{border-radius:26px}.modal-tall{height:auto;max-height:100%}}
 @keyframes page-in{from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
 @keyframes sheet-in{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:translateY(0)}}
