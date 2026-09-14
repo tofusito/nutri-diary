@@ -145,6 +145,13 @@ try {
   const withKeyboard = await sheet.boundingBox();
   assert.ok(Math.abs(withKeyboard.y + withKeyboard.height - (844 - 336)) <= 1, 'the sheet ignores the keyboard inset');
   assert.ok(withKeyboard.height > 200, 'the sheet collapsed above the keyboard');
+  const veil = await page.evaluate(() => {
+    const box = document.querySelector('.modal-backdrop');
+    const before = getComputedStyle(box, '::before');
+    return { bottom: box.getBoundingClientRect().bottom, veilBottom: parseFloat(before.bottom), veilTop: parseFloat(before.top) };
+  });
+  assert.ok(veil.bottom >= 844 - 1, 'the veil stops short of the bottom of the screen');
+  assert.ok(veil.veilBottom < 0 && veil.veilTop < 0, 'the veil does not bleed past its box');
   await page.evaluate(() => document.documentElement.style.removeProperty('--keyboard-inset'));
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
 
@@ -183,5 +190,5 @@ try {
   await zeroMacro.pressSequentially('37');
   assert.equal(await zeroMacro.inputValue(), '37', 'zero macro should be replaced on first typing');
   assert.deepEqual(errors, []);
-  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; the search sheet filling a keyboard-sized viewport with no gap under it; the sheet riding on top of a keyboard inset; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
+  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; the search sheet filling a keyboard-sized viewport with no gap under it; the sheet riding on top of a keyboard inset while the veil still covers the screen; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }
