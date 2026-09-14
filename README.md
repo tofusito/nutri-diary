@@ -43,6 +43,8 @@ npm run icons
 
 That command derives the 180, 192 and 512 pixel install assets from `public/noodle-master.png`, including the shadowed versions used by the manifest and iOS home-screen metadata. The dark interface remains the app canvas; the red icon is its warm visual accent.
 
+The broader visual direction is recorded in [`DESIGN.md`](DESIGN.md) so future UI and artwork changes keep the same mobile-first language.
+
 ### Adding food
 
 Search looks in your own catalogue first and in [Open Food Facts](https://world.openfoodfacts.org) second, in one list, in that order. Scan the barcode or type it.
