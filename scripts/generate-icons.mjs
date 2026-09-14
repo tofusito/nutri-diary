@@ -2,14 +2,14 @@
  *  The master image was generated from this prompt, kept so the artwork can be
  *  reproduced in the same style: "Create a finished premium iPhone home screen
  *  app icon, square full bleed, no rounded outer corners. Minimal Chinese
- *  noodle bowl: ivory ceramic bowl with a vermilion rim, dark charcoal
- *  chopsticks lifting three golden noodle curves. Warm off-white background,
- *  generous negative space, bold at small sizes, very subtle ceramic depth. No
- *  text, border, mockup, extra ingredients or emoji aesthetic."
- *  Edited with built-in image generation: preserve bowl, noodles and chopsticks;
- *  enlarge the subject for small home-screen sizes, add a stronger soft
- *  warm-gray contact shadow, deeper ceramic shading and a warmer cream
- *  background for contrast. No text, new objects or rounded outer corners.
+ *  noodle bowl: large warm-cream ceramic bowl, vivid vermilion-red full-bleed
+ *  background, charcoal chopsticks lifting golden noodles. Minimal dimensional
+ *  illustration, bold at small sizes, no text, border, mockup, extra ingredients
+ *  or emoji aesthetic. The red background reaches the square edges because iOS
+ *  applies its own rounded mask.
+ *  Edited with built-in image generation: preserve the selected bowl, noodles
+ *  and chopsticks; remove only the transparent/checkerboard outer area and
+ *  keep the red background full-bleed. No text, watermark or extra objects.
  *  Run with: npm run icons */
 import { chromium } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
