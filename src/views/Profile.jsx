@@ -110,6 +110,7 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
       </div>}
 
       <button type="button" className="link-button" onClick={onLogout}>Cerrar sesión</button>
+      <p className="build">Versión {typeof __BUILD__ === 'string' ? __BUILD__ : 'de desarrollo'}</p>
     </section>
   </main>
 }

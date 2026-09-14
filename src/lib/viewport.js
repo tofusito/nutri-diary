@@ -25,9 +25,19 @@ export function trackViewport() {
     const visibleBottom = viewport.offsetTop + viewport.height
     root.style.setProperty('--keyboard-inset', `${Math.max(0, Math.round(fixedBottom - visibleBottom))}px`)
   }
+  // iOS raises the keyboard in stages and the suggestion bar can appear, grow
+  // or vanish while typing without a reliable resize event, so the measurement
+  // is repeated for as long as something is focused rather than taken once.
+  let watching = 0
+  const watch = () => {
+    clearInterval(watching)
+    apply()
+    watching = setInterval(apply, 250)
+    setTimeout(() => { clearInterval(watching); watching = 0; apply() }, 4_000)
+  }
   apply()
   viewport.addEventListener('resize', apply)
   viewport.addEventListener('scroll', apply)
-  addEventListener('focusin', apply)
-  addEventListener('focusout', () => setTimeout(apply, 50))
+  addEventListener('focusin', watch)
+  addEventListener('focusout', watch)
 }
