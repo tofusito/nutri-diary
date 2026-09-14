@@ -5,3 +5,7 @@ services:
       AUTH_MODE: cloudflare
       APP_PASSWORD: ""
       SESSION_SECRET: ""
+      # With both set, the origin verifies the assertion Access attaches to
+      # every allowed request instead of trusting whatever reaches the tunnel.
+      CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD}
