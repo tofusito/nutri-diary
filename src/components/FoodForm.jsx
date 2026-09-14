@@ -39,7 +39,7 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
 
   return <>
   <form className="form" onSubmit={submit}>
-    <label>Nombre<input required autoFocus={!food.name} value={food.name} onChange={event => set('name', event.target.value)} placeholder="Ej. Yogur griego natural" /></label>
+    <label>Nombre<input required value={food.name} onChange={event => set('name', event.target.value)} placeholder="Ej. Yogur griego natural" /></label>
     <label>Código de barras<span className="scan-field">
       <input inputMode="numeric" value={food.barcode || ''} onChange={event => set('barcode', event.target.value)} placeholder="Escanéalo o escríbelo" />
       <button type="button" className="secondary scan-button" onClick={() => setScanning(true)} aria-label="Escanear el código de barras"><Icon name="barcode" />Escanear</button>

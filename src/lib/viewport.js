@@ -17,7 +17,6 @@ export function trackViewport() {
     const bounds = probe.getBoundingClientRect()
     root.style.setProperty('--sheet-top', `${viewport.offsetTop - bounds.top}px`)
     root.style.setProperty('--sheet-height', `${viewport.height}px`)
-    root.classList.toggle('keyboard-open', bounds.height - viewport.height > 120 && viewport.scale === 1)
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(apply) }
   const focus = () => {
@@ -27,6 +26,7 @@ export function trackViewport() {
   }
   viewport.addEventListener('resize', schedule)
   viewport.addEventListener('scroll', schedule)
+  viewport.addEventListener('scrollend', schedule)
   window.addEventListener('resize', schedule)
   document.addEventListener('focusin', focus)
   document.addEventListener('focusout', focus)
@@ -36,6 +36,7 @@ export function trackViewport() {
     clearTimeout(settle)
     viewport.removeEventListener('resize', schedule)
     viewport.removeEventListener('scroll', schedule)
+    viewport.removeEventListener('scrollend', schedule)
     window.removeEventListener('resize', schedule)
     document.removeEventListener('focusin', focus)
     document.removeEventListener('focusout', focus)

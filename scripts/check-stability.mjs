@@ -43,6 +43,24 @@ try {
   await page.getByRole('button', { name: '+ Crear otro perfil', exact: true }).click();
   assert.equal(await page.getByLabel('Nombre', { exact: true }).inputValue(), '');
   await tab('Alimentos'); await page.getByRole('button', { name: '+ Nuevo', exact: true }).click();
+  const foodDialog = page.getByRole('dialog');
+  await foodDialog.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished)));
+  assert.equal(await page.getByLabel('Nombre', { exact: true }).evaluate(element => document.activeElement === element), false, 'new-food sheet must not open the keyboard');
+  for (const [height, offsetTop] of [[420, 0], [360, 80], [844, 0]]) {
+    await page.evaluate(({ height, offsetTop }) => {
+      Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: height });
+      Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: offsetTop });
+      window.visualViewport.dispatchEvent(new Event('resize'));
+    }, { height, offsetTop });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const box = await foodDialog.boundingBox();
+    assert.ok(box.y >= offsetTop - 1 && box.y + box.height <= offsetTop + height + 1, `new-food sheet must fit the visible viewport at ${height}px`);
+  }
+  await page.evaluate(() => {
+    Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: 844 });
+    Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: 0 });
+    window.visualViewport.dispatchEvent(new Event('resize'));
+  });
   await page.getByLabel('Nombre', { exact: true }).fill('Test stability');
   await page.getByLabel('kcal', { exact: true }).fill('100');
   await page.getByLabel('Proteínas', { exact: true }).fill('0');

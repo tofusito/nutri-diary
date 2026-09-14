@@ -347,15 +347,11 @@ button.danger{background:#3a221f;color:#ffb3a7;box-shadow:inset 0 0 0 1px #5a312
 
 /* One visible sheet, with the search field and confirmation kept reachable. */
 .modal-backdrop{padding-bottom:0}
-.modal{scroll-padding-block:16px}
+.modal{scroll-padding:16px 0 88px}
 .modal input,.modal select,.modal textarea{font-size:16px}
 .modal .quantity-row input{font-size:21px}
-.modal header{position:sticky;top:-18px;z-index:2;background:var(--surface);padding-block:8px}
-.modal .form-actions{position:sticky;bottom:-10px;z-index:2;background:var(--surface);padding-block:12px;margin-top:12px}
-.keyboard-open .modal{padding-bottom:10px;animation:none}
-.keyboard-open .modal::before{display:none}
-.keyboard-open .modal header{margin-bottom:8px}
-.keyboard-open .modal-backdrop{padding-top:0}
+.modal header{position:sticky;top:0;z-index:2;background:var(--surface);padding-block:8px}
+.modal .form-actions{position:sticky;bottom:0;z-index:2;background:var(--surface);padding-block:12px;margin-top:12px}
 @media(min-width:700px){.modal-backdrop{padding:24px}.modal-tall{height:min(760px,100%)}}
 
 .build{font-family:var(--mono);font-size:10px;color:var(--faint);margin:14px 0 0}
