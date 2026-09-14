@@ -65,7 +65,7 @@ try {
   await page.route('**/api/foods/ai', async route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     food: { name: 'Yogur griego de prueba', brand: 'Marca de prueba', barcode: '', basis: 'g', nutrients: { kcal: 97, carbs: 4, protein: 9, fat: 5 }, servingSize: 125, source: 'openai-web', ai: { model: 'gpt-5.6-luna', confidence: 'medium', query: 'Yogur griego de prueba', sources: [{ title: 'Fuente de prueba', url: 'https://example.com/nutrition' }], generatedAt: new Date().toISOString() } }, confidence: 'medium', notes: 'Propuesta de prueba.', sources: [{ title: 'Fuente de prueba', url: 'https://example.com/nutrition' }], model: 'gpt-5.6-luna',
   }) }));
-  await page.getByRole('button', { name: 'Buscar y rellenar', exact: true }).click();
+  await page.getByRole('button', { name: 'Buscar con IA', exact: true }).click();
   await page.getByText('Propuesta rellenada', { exact: true }).waitFor();
   assert.equal(await page.getByLabel('Nombre', { exact: true }).inputValue(), 'Yogur griego de prueba');
   assert.equal(await page.getByLabel('kcal', { exact: true }).inputValue(), '97');

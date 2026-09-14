@@ -68,8 +68,8 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
   <form className="form" onSubmit={submit}>
     <section className="ai-assistant" aria-labelledby="food-ai-title">
       <div className="ai-assistant-head"><div><p className="eyebrow">ASISTENTE</p><h3 id="food-ai-title">Rellenar con IA</h3></div><span className="ai-badge">WEB</span></div>
-      <label>Qué alimento o producto buscas<input value={aiQuery} onChange={event => setAiQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); fillWithAi() } }} placeholder="Ej. Yogur griego Hacendado natural 0%" enterKeyHint="search" autoComplete="off" /></label>
-      <button type="button" className="secondary ai-action" onClick={fillWithAi} disabled={aiQuery.trim().length < 2 || aiLoading || saving || loading}>{aiLoading ? 'Buscando y rellenando…' : 'Buscar y rellenar'}</button>
+      <label>Qué alimento o producto buscas<input value={aiQuery} onChange={event => setAiQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); fillWithAi() } }} placeholder="Ej. Pan de hamburguesa Hacendado" enterKeyHint="search" autoComplete="off" /></label>
+      <button type="button" className="secondary ai-action" onClick={fillWithAi} disabled={aiQuery.trim().length < 2 || aiLoading || saving || loading}>{aiLoading ? 'Buscando…' : 'Buscar con IA'}</button>
       <p className="muted">Consulta fuentes públicas y propone valores por 100 {unit}. Revísalos antes de guardar.</p>
       {aiError && <p className="error" role="alert">{aiError}</p>}
       {aiResult && <div className="ai-result" role="status" aria-live="polite">
