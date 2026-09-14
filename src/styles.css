@@ -202,6 +202,7 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 .day-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 14px}
 .day-row strong{font-size:14px}
 .day-row span{font-size:11px;color:var(--muted);display:block;margin-top:3px}
+.day-row span .macros{margin-left:7px}
 .day-row .left{font-size:13px}
 .insight{margin-top:14px}
 .insight p{color:var(--muted);font-size:13px;margin:0}

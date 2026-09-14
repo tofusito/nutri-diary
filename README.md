@@ -1,66 +1,112 @@
-# Nutri Diary
+<div align="center">
 
-A small, multi-profile nutrition diary in Spanish. Mobile-first React PWA, Express API, one MongoDB instance with separate catalog and tracking databases. No adaptive coaching or subscription service.
+<img src="public/noodle-512.png" width="128" alt="">
 
-## Product scope
+# Nutri
 
-- Several profiles share one installation and one food catalog, each with its own name, weight, height, age, sex, weekly exercise level, goals, goal history and diary. The profile is chosen once after signing in and is remembered per device; it is not switched from inside the diary, only from "Cambiar de perfil" in the profile tab.
-- A dish cooked for the household can be logged in more than one diary at once: ticking another profile in the add sheet reveals its own gram field, so two people can record different helpings of the same food on the same day and meal.
-- Set carbohydrates, protein and fat in grams. Goal energy is always `4 × carbs + 4 × protein + 9 × fat`.
-- Carbohydrates, protein and fat keep one colour each across every screen — amber, blue and pink — so a figure can be read without hunting for its label.
-- The home screen shows one day at a time. Totals sit at the top: consumed over goal, and underneath the difference — `−N` in green while something is still available, `+N` in red once the goal is passed. Missing data reads `—`, never zero.
-- Meals are named, not timed: Desayuno, Comida, Merienda, Cena and Snacks. Each has its own add button.
-- Adding a food searches the personal catalog first and Open Food Facts second, in that order, in one list. Barcodes can be scanned or typed. A barcode is not a unique key in practice — retailers reuse them — so every product matching it is listed, personal entries first, and the personal catalog allows several foods to share one code.
-- When a barcode is nowhere to be found, the create form opens with that code already filled in and asks for the bare minimum: name, barcode and kcal, carbohydrates, protein and fat per 100 g/ml. Brand, usual portion, favorite, label OCR and the private QR sit behind "Más opciones". Blank fields are stored as unknown, not as zero.
-- Picking an external result copies it into the personal catalog, so the next search finds it locally. The catalog is one shared library: a food created from any profile is immediately searchable from the others.
-- Quantities are entered in grams or millilitres and every value is scaled from the per-100 figures. The add sheet shows the scaled kcal and macros for the amount typed before confirming, and each meal on the home screen lists what was eaten, with its own kcal and macro line.
-- Tapping a logged portion opens the same controls used to add it: amount, meal and day are all editable, and the entry can be deleted from there. Meals are the easiest thing to mis-tap, so moving one takes two taps rather than deleting and starting again.
-- The add sheet opens on what this profile usually eats at that meal, so repeating yesterday's breakfast is one tap.
-- Copying the previous day asks first, lists what it will add and leaves out anything already registered, so pressing it twice cannot duplicate the day.
-- A food can be removed from the shared library; diary entries keep the snapshot they were logged with.
-- Progress only charts days that actually have entries; empty days are dropped rather than drawn as zeroes, and a range with no records says so.
-- Optional Mifflin–St Jeor calculator estimates resting energy; an activity multiplier estimates maintenance separately. It does not change targets automatically. This equation dates from 1990; it is not a newly released or adaptive algorithm.
-- Food labels retain their declared kcal. Fiber, alcohol and rounding mean food energy need not equal a naive 4/4/9 calculation. The 4/4/9 rule is authoritative for the user's macro goal only.
+**A nutrition diary for two people who just want to know what they ate.**
 
-## Development
+Log the meal, see what is left. No coaching, no streaks, no subscription.
 
-Node 22.23+ and a MongoDB instance are required. Install dependencies with `npm ci`. Copy `.env.example` to a private `.env`, set `MONGODB_URI`, and either set `APP_PASSWORD` or explicitly opt into `DEV_AUTH_BYPASS=1` for loopback-only development. Start `npm run server` and `npm run dev` in separate terminals. Vite proxies `/api` to port 3100. Production assets use `npm run build`, then `npm start`.
+</div>
 
-`npm test` runs arithmetic and API tests. API integration tests use a temporary real MongoDB process via mongodb-memory-server; the first run downloads its binary. `node scripts/generate-icons.mjs` regenerates PNG assets from the SVG with Playwright; requires `npx playwright install chromium`.
+<table>
+<tr>
+<td width="33%"><img src="docs/screens/today.png" alt="A day with its totals on top"></td>
+<td width="33%"><img src="docs/screens/add.png" alt="Adding one dish to both diaries"></td>
+<td width="33%"><img src="docs/screens/progress.png" alt="A week of logged days"></td>
+</tr>
+<tr>
+<td align="center"><sub>One day at a time</sub></td>
+<td align="center"><sub>Cooked once, logged twice</sub></td>
+<td align="center"><sub>Only the days you logged</sub></td>
+</tr>
+</table>
 
-## Hosting behind Cloudflare Tunnel
+## What it does
 
-`compose.yaml` prepares app + MongoDB with a persistent named volume. Set a strong `APP_PASSWORD` and the actual public HTTPS `APP_ORIGIN` in `.env` before running `docker compose up -d --build`. The default app binding is `127.0.0.1:3100`; MongoDB has no published port.
+Carbohydrates, protein and fat in grams. Energy is always `4 × carbs + 4 × protein + 9 × fat`, so your goal is whatever your macros add up to and nothing recalculates it behind your back.
 
-This deployment is published at `https://nutri.tofusito.org`; set that as `APP_ORIGIN`. Same-origin checks on writes and the secure session cookie both depend on it being the real public origin.
+The home screen is a single day split into five named meals — Desayuno, Comida, Merienda, Cena, Snacks — because nobody remembers what time they ate. The totals sit on top: what you have eaten against your goal, and underneath the difference. **`−N` in green** while there is room left, **`+N` in red** once you are past it. What is unknown reads `—`, never zero.
 
-For a host-installed cloudflared, route `nutri.tofusito.org` to `http://127.0.0.1:3100`. To run cloudflared inside compose instead, put the tunnel token in `TUNNEL_TOKEN` and start with `docker compose --profile tunnel up -d --build`; that service targets `http://app:3100`, because localhost inside the cloudflared container would address the wrong container. Creating the tunnel and its DNS record in the Cloudflare dashboard is a manual step this repository does not perform.
+Each macro keeps one colour everywhere: hidratos amber, proteínas blue, grasas pink. You read a number without hunting for its label.
 
-Set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` so the origin verifies the assertion Access attaches to every allowed request. Without them the origin trusts whatever reaches it, which is only as strong as the edge policy staying in place; with them, a removed or misconfigured Access application turns into a 403 instead of an open diary. The audience tag is the `kid` parameter of the Access login redirect for the hostname.
+### Adding food
 
-Cloudflare Tunnel provides transport, not by itself user authentication. The app has one password-protected personal session; Cloudflare Access may additionally restrict access. If enabling Access, enable token validation at the tunnel/origin as documented by Cloudflare. Keep APIs uncached at the edge; never add a Cache Everything rule to this hostname.
+Search looks in your own catalogue first and in [Open Food Facts](https://world.openfoodfacts.org) second, in one list, in that order. Scan the barcode or type it.
 
-On iPhone, open the HTTPS site and choose Share → Add to Home Screen. On Android use the browser's installation option. Barcode scanning needs camera permission and a secure context: it works on the HTTPS hostname and on localhost, and fails everywhere else, including plain-HTTP access to the LAN address. The scanner says so and offers a field for typing the code by hand. Confirm camera behavior and standalone installation on the actual phone after the tunnel is available.
+A barcode is not a unique key in real life — shops reuse them — so a scan lists **every** product that matches instead of guessing, yours first. If a code is nowhere to be found, the form opens with it already filled in and asks for the minimum: a name and kcal, carbs, protein and fat per 100 g. Leave blank whatever the label does not say; it is stored as unknown, not as zero.
 
-## Data and providers
+Pick a public result and it is copied into your catalogue, so next time it is already yours.
 
-`nutrition_catalog`: personal foods and external cache, shared by every profile. `nutrition_tracking`: profiles, goal history and diary entries, each row stamped with its `profileId`. Entries preserve a food snapshot, so editing a catalog item cannot rewrite historical intake. Client UUIDs prevent duplicate creates during network retries.
+### Two people, one kitchen
 
-Startup migrates an older single-profile database: the previous profile becomes `Perfil 1` and existing entries and goals are stamped with its id. Deleting a profile deletes its diary and goal history; the last remaining profile cannot be deleted.
+Each profile keeps its own goals, diary and history, and both share one food catalogue. You choose who you are once after signing in and the device remembers.
 
-Open Food Facts data are community-maintained and may be incomplete. Unknown values are displayed as missing, not assumed zero. Product searches are explicit and rate limited. Keep attribution in the UI and source metadata in stored foods. Optional `USDA_API_KEY` enables FoodData Central searches; without it, the UI should show a configuration message. US carbohydrate definitions may differ from EU labels: review external results before saving.
+When you cook the same thing for both, tick the other person in the add sheet and their own gram field appears: same dish, different helping, one tap.
 
-Label OCR runs in the browser; language/model assets may download on first use. Photos are not uploaded as diary records. Treat OCR fields as suggestions and confirm them before saving. This is label reading, not calorie estimation from meal photographs.
+### The small things that matter daily
+
+- The add sheet opens on what you usually eat at that meal, so repeating yesterday's breakfast is one tap.
+- Tap a logged portion to change the amount, move it to another meal or another day, or delete it.
+- Copying yesterday asks first, shows what it will add and skips anything already there, so pressing it twice cannot duplicate the day.
+- Entries keep a snapshot of the food, so fixing a catalogue mistake never rewrites what you already ate.
+- Log without signal and it syncs when you are back.
+
+## Run it
+
+Node 22.23+ and a MongoDB instance.
+
+```sh
+npm ci
+cp .env.example .env      # set MONGODB_URI, and APP_PASSWORD or DEV_AUTH_BYPASS=1
+npm run server            # API on :3100
+npm run dev               # UI, proxies /api
+```
+
+Want to poke at it without installing MongoDB? `npm run build && node scripts/preview-local.mjs` starts a throwaway diary on an in-memory database, discarded when you stop it.
+
+| Script | What it does |
+|---|---|
+| `npm test` | Arithmetic and API tests, against a real temporary MongoDB |
+| `npm run check` | Drives the UI in a browser: bad input, failed saves, offline, four widths |
+| `npm run screenshots` | Regenerates the images above from a seeded diary |
+| `npm run icons` | Rebuilds the PNG icons from `public/icon.svg` |
+
+## Self-hosting
+
+`compose.yaml` brings up the app, MongoDB on a named volume, a daily backup job and an optional Cloudflare Tunnel connector. Set a strong `APP_PASSWORD` and the real public `APP_ORIGIN`, then `docker compose up -d --build`. The app binds to `127.0.0.1:3100`; MongoDB publishes nothing.
+
+The tunnel sits behind the `tunnel` Compose profile, so a plain `up -d` will not start it — use `docker compose --profile tunnel up -d cloudflare`, or set `COMPOSE_PROFILES=tunnel`. With a host-installed cloudflared, route the hostname to `http://127.0.0.1:3100` instead; inside compose the target is `http://app:3100`, because localhost in that container is the wrong container. Creating the tunnel and its DNS record is a manual step this repository does not perform.
+
+A tunnel gives you transport, not identity. Put [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/) in front and set `AUTH_MODE=cloudflare`; add `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` and the origin verifies the assertion Access attaches to every allowed request, so a policy that gets removed becomes a 403 instead of an open diary. The audience tag is the `kid` parameter of the Access login redirect for your hostname. Keep the API uncached at the edge; never add a Cache Everything rule to it.
+
+On the phone: open the HTTPS site and Add to Home Screen. Barcode scanning needs camera permission and a secure context, so it works over the tunnel and on `localhost` and nowhere else — not over plain HTTP on a LAN address. The scanner says so and offers a field for typing the code by hand.
+
+## How it is built
+
+A React PWA, an Express API and one MongoDB instance with two databases. `nutrition_catalog` holds the shared foods and the cache of external lookups; `nutrition_tracking` holds profiles, goal history and diary entries, each row stamped with its `profileId`. Client-generated UUIDs make a lost response safe to retry. Deleting a profile deletes its diary and goal history, and the last remaining profile cannot be deleted. An older single-profile database migrates on startup: the previous profile becomes `Perfil 1` and its rows are stamped with its id.
+
+Open Food Facts data is community-maintained and sometimes incomplete, which is why missing values stay missing. Text search goes through `search.openfoodfacts.org`; a barcode is asked of the search index and the product endpoint at once, so one of them being rate limited does not look like an outage. Product reads and searches keep separate rate-limit queues, and attribution stays in the interface. An optional `USDA_API_KEY` enables FoodData Central, which is a US catalogue: its carbohydrate figures are defined differently from EU labels, so review anything you take from it.
+
+Label OCR runs in the browser and its fields are suggestions to confirm, not readings to trust. Photos are never stored as diary records. This reads labels; it does not estimate calories from a photo of your plate.
+
+An optional Mifflin–St Jeor calculator estimates resting energy and, with an activity factor, maintenance. It dates from 1990, it is not adaptive, and it never moves your goal on its own: there is a button to copy a 40/30/30 split out of it, and that is as far as it goes.
 
 ## Backups
 
-JSON export is a portable record of the application data, not an automated backup policy. Before operational use, configure scheduled MongoDB dumps of both databases into protected storage and test restoration into a separate instance. Do not run destructive volume cleanup commands on the production stack. No production deployment or backup restoration is performed by the development tests.
+The compose stack archives both databases daily with a SHA-256 beside each file, keeps 14 days, and only records success when both archives are written — that record drives the backup container's health check, which goes red if the last good run is older than a day. `GET /api/export` returns everything as JSON, which is a portable record, not a backup policy.
+
+A local copy shares the host's failure domain. Move it to another machine before calling it safe, and test a restore into a throwaway container rather than over the live one. Do not run destructive volume cleanup on a stack holding real data.
 
 ## Sources
 
-- [Open Food Facts API](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/) and [licensing](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/tutorials/license-be-on-the-legal-side/).
-- [FoodData Central API](https://fdc.nal.usda.gov/api-guide/).
-- [Mifflin et al., original equation](https://www.carnotdiet.com/Files/BMRMifflin1990.pdf).
-- [PWA installation](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable), [ZXing browser](https://github.com/zxing-js/browser), [Tesseract.js](https://github.com/naptha/tesseract.js).
-- [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/) and [protecting self-hosted apps](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/).
-- [Vite](https://vite.dev/guide/), [Express](https://expressjs.com/en/starter/basic-routing/), [MongoDB Node driver](https://www.mongodb.com/docs/drivers/node/current/get-started/).
+- [Open Food Facts API](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/) and [licensing](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/tutorials/license-be-on-the-legal-side/)
+- [FoodData Central API](https://fdc.nal.usda.gov/api-guide/) · [Mifflin et al., original equation](https://www.carnotdiet.com/Files/BMRMifflin1990.pdf)
+- [ZXing browser](https://github.com/zxing-js/browser) · [Tesseract.js](https://github.com/naptha/tesseract.js) · [PWA installation](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable)
+- [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/) and [protecting self-hosted apps](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)
+- [Vite](https://vite.dev/guide/) · [Express](https://expressjs.com/en/starter/basic-routing/) · [MongoDB Node driver](https://www.mongodb.com/docs/drivers/node/current/get-started/)
+
+---
+
+<div align="center"><sub>Interface in Spanish, code and docs in English. Built for two people and a kitchen — if it is useful to you too, help yourself.</sub></div>
