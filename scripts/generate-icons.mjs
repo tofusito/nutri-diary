@@ -7,8 +7,9 @@
  *  generous negative space, bold at small sizes, very subtle ceramic depth. No
  *  text, border, mockup, extra ingredients or emoji aesthetic."
  *  Edited with built-in image generation: preserve bowl, noodles and chopsticks;
- *  add a soft warm-gray contact shadow, stronger ceramic shading and a pale
- *  cream background for contrast. No text, new objects or rounded outer corners.
+ *  enlarge the subject for small home-screen sizes, add a stronger soft
+ *  warm-gray contact shadow, deeper ceramic shading and a warmer cream
+ *  background for contrast. No text, new objects or rounded outer corners.
  *  Run with: npm run icons */
 import { chromium } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
