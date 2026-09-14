@@ -97,6 +97,20 @@ try {
       await tab(name); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `overflow ${name} ${width}`);
     }
   }
+  // A write from another device must reach an open diary on its own. Returning
+  // to the app reloads immediately; while it stays on screen the poll does it.
+  await tab('Hoy');
+  const remote = { id: randomUUID(), date: diaryDate, meal: 'Cena', food, quantity: 55 };
+  await request('/api/entries', 'POST', remote);
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.locator('.entry').filter({ hasText: '55 g' }).waitFor({ timeout: 10_000 });
+  const polled = { id: randomUUID(), date: diaryDate, meal: 'Merienda', food, quantity: 45 };
+  await request('/api/entries', 'POST', polled);
+  await page.locator('.entry').filter({ hasText: '45 g' }).waitFor({ timeout: 30_000 });
+  await request(`/api/entries/${remote.id}`, 'DELETE');
+  await request(`/api/entries/${polled.id}`, 'DELETE');
+  await page.locator('.entry').filter({ hasText: '45 g' }).waitFor({ state: 'detached', timeout: 30_000 });
+
   // Scanning into the barcode field: the camera is denied here, so this drives
   // the manual fallback and checks the code lands back on the form.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -132,5 +146,5 @@ try {
   await zeroMacro.pressSequentially('37');
   assert.equal(await zeroMacro.inputValue(), '37', 'zero macro should be replaced on first typing');
   assert.deepEqual(errors, []);
-  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
+  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }

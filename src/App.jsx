@@ -11,6 +11,8 @@ import Modal from './components/Modal.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 const PROFILE_KEY = 'nutri-profile'
+// Two phones on one diary: often enough to feel live, rare enough to ignore.
+const SYNC_INTERVAL_MS = 20_000
 
 function Login({ onLogin }) {
   const [password, setPassword] = useState(''); const [error, setError] = useState('')
@@ -37,6 +39,7 @@ export default function App() {
   const [pending, setPending] = useState(0)
   const [copyPlan, setCopyPlan] = useState(null)
   const loadId = useRef(0)
+  const writes = useRef(0)
 
   const profile = (profiles || []).find(item => item.id === profileId) || null
   const scope = profile ? `profile=${profile.id}` : ''
@@ -54,6 +57,26 @@ export default function App() {
       if (ticket !== loadId.current) return
       setFoods(f || []); setEntries(e || []); setError('')
     } catch (err) { if (ticket === loadId.current) setError(err.message) }
+  }
+
+  /** The other phone writes into this diary too — the shared dish feature does
+   *  it by design — so the open day is re-read while the app is on screen.
+   *  Entries queued offline are not on the server yet and are kept as they are,
+   *  and a poll landing mid-write would fight the optimistic update, so writes
+   *  hold it off. State is only replaced when the day actually differs, which
+   *  keeps this invisible until something really changed elsewhere. */
+  const refresh = async () => {
+    if (writes.current > 0 || !profileId) return
+    const ticket = loadId.current
+    try {
+      const fresh = await api(`/api/entries?date=${date}&profile=${profileId}`)
+      if (ticket !== loadId.current || writes.current > 0) return
+      setEntries(current => {
+        const queued = current.filter(entry => entry.pending)
+        const merged = [...fresh, ...queued.filter(entry => !fresh.some(item => item.id === entry.id))]
+        return JSON.stringify(merged) === JSON.stringify(current) ? current : merged
+      })
+    } catch { /* A failed poll changes nothing; the next one will try again. */ }
   }
 
   useEffect(() => {
@@ -74,6 +97,16 @@ export default function App() {
     sync(); addEventListener('online', sync); addEventListener('focus', sync)
     return () => { removeEventListener('online', sync); removeEventListener('focus', sync) }
   }, [auth, date, profileId])
+  useEffect(() => {
+    if (!auth || !profileId) return
+    // Coming back to the app reloads everything; while it is on screen a light
+    // poll is enough. Nothing runs in the background.
+    const wake = () => { if (document.visibilityState === 'visible') load() }
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') refresh() }, SYNC_INTERVAL_MS)
+    document.addEventListener('visibilitychange', wake)
+    addEventListener('online', wake)
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', wake); removeEventListener('online', wake) }
+  }, [auth, date, profileId])
 
   const selectProfile = id => {
     setProfileId(id)
@@ -82,11 +115,13 @@ export default function App() {
   }
 
   const add = async entry => {
+    writes.current += 1
     setEntries(current => current.some(item => item.id === entry.id) ? current : [...current, entry])
     try {
       const saved = await api(withScope('/api/entries'), { method: 'POST', body: JSON.stringify({ ...entry, profileId: profile?.id }) })
       setEntries(current => current.map(item => item.id === entry.id ? saved : item)); setPending(pendingEntries().length)
     } catch (err) { setEntries(current => current.filter(item => item.id !== entry.id)); throw err }
+    finally { writes.current -= 1 }
   }
   /** One dish cooked for the household: the same food goes into every chosen
    *  diary on the same day, each with its own amount. */
@@ -101,14 +136,19 @@ export default function App() {
   /** Changes come from the edit sheet already validated; a move to another day
    *  drops the entry from the day on screen. Errors travel back to the sheet. */
   const edit = async (entry, changes) => {
-    const updated = await api(`/api/entries/${entry.id}`, { method: 'PATCH', body: JSON.stringify(changes) })
-    setEntries(current => updated.date === date
-      ? current.map(item => item.id === entry.id ? updated : item)
-      : current.filter(item => item.id !== entry.id))
+    writes.current += 1
+    try {
+      const updated = await api(`/api/entries/${entry.id}`, { method: 'PATCH', body: JSON.stringify(changes) })
+      setEntries(current => updated.date === date
+        ? current.map(item => item.id === entry.id ? updated : item)
+        : current.filter(item => item.id !== entry.id))
+    } finally { writes.current -= 1 }
   }
   const remove = async entry => {
+    writes.current += 1
     setEntries(current => current.filter(item => item.id !== entry.id)); setUndo(entry)
     try { await api(`/api/entries/${entry.id}`, { method: 'DELETE' }) } catch (err) { setEntries(current => [...current, entry]); setUndo(null); setError(err.message) }
+    finally { writes.current -= 1 }
   }
   const restore = async () => { if (!undo) return; const entry = undo; setUndo(null); try { await add(entry) } catch (err) { setError(err.message); setUndo(entry) } }
   /** Copying the previous day is easy to press twice, so it asks first and
