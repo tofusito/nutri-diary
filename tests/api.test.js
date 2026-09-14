@@ -18,7 +18,7 @@ const request=async(path,method='GET',body)=>{
 };
 const food=()=>({name:'Test oats',basis:'g',nutrients:{kcal:380,carbs:60,protein:12,fat:8}});
 
-test('single profile derives energy and preserves date-specific goals',async()=>{
+test('the default profile derives energy and preserves date-specific goals',async()=>{
   assert.equal((await request('/api/profile')).body.carbs,0);
   assert.equal((await request('/api/profile','PUT',{carbs:250,protein:150,fat:70,effectiveDate:'2026-01-01'})).body.kcal,2230);
   await request('/api/profile','PUT',{carbs:200,protein:150,fat:60,effectiveDate:'2026-02-01'});
@@ -40,13 +40,36 @@ test('historical entries survive catalog corrections; edits recalculate and retr
   await request(`/api/entries/${entry.id}`,'DELETE');await request(`/api/entries/${entry.id}`,'DELETE');
   assert.equal((await request('/api/entries?date=2025-12-13')).body.length,0);
 });
-test('personal barcode wins, duplicates rejected, favorite removable',async()=>{
+test('a shared barcode lists every personal food before external results',async()=>{
   const f=(await request('/api/foods','POST',{...food(),barcode:'8410000000001',favorite:true})).body;
-  assert.equal((await request('/api/lookup/8410000000001')).body.id,f.id);
+  const sibling=(await request('/api/foods','POST',{...food(),name:'Reused barcode',barcode:'8410000000001'})).body;
+  assert.equal(sibling.status,undefined);
+  const lookup=(await request('/api/lookup/8410000000001')).body;
+  assert.deepEqual(lookup.mine.map(item=>item.id).sort(),[f.id,sibling.id].sort());
+  assert.ok(Array.isArray(lookup.external));
   assert.equal((await request('/api/foods?q=8410000000001')).body[0].id,f.id);
-  assert.equal((await request('/api/foods','POST',{...food(),barcode:'8410000000001'})).status,409);
   await request(`/api/foods/${f.id}`,'PATCH',{favorite:false});
   assert.notEqual((await request('/api/foods?q=8410000000001')).body[0].favorite,true);
+  await request(`/api/foods/${sibling.id}`,'DELETE');
+  assert.equal((await request('/api/lookup/8410000000001')).body.mine.length,1);
+});
+
+test('profiles keep separate diaries, goals and deletion',async()=>{
+  const mine=(await request('/api/profiles')).body;
+  assert.equal(mine.length,1);
+  const other=(await request('/api/profiles','POST',{name:'Pareja',carbs:200,protein:120,fat:60,sex:'female',activity:1.375,effectiveDate:'2026-01-01'})).body;
+  assert.equal(other.kcal,1820);
+  assert.equal((await request('/api/profiles')).body.length,2);
+  const f=(await request('/api/foods','POST',food())).body;
+  await request(`/api/entries?profile=${other.id}`,'POST',{id:randomUUID(),date:'2026-04-01',meal:'Merienda',food:f,quantity:100});
+  assert.equal((await request(`/api/entries?date=2026-04-01&profile=${other.id}`)).body.length,1);
+  assert.equal((await request('/api/entries?date=2026-04-01')).body.length,0);
+  assert.equal((await request(`/api/progress?from=2026-04-01&to=2026-04-01&profile=${other.id}`)).body[0].goal.kcal,1820);
+  assert.equal((await request('/api/progress?from=2026-04-01&to=2026-04-01')).body[0].kcal,null);
+  assert.equal((await request(`/api/entries?date=2026-04-01&profile=${randomUUID()}`)).status,404);
+  await request(`/api/profiles/${other.id}`,'DELETE');
+  assert.equal((await request('/api/profiles')).body.length,1);
+  assert.equal((await request(`/api/entries?date=2026-04-01&profile=${other.id}`)).status,404);
 });
 test('unknown nutrient remains null in progress, invalid inputs rejected',async()=>{
   const f=(await request('/api/foods','POST',{...food(),nutrients:{kcal:20,carbs:null,protein:1,fat:0}})).body;
@@ -56,6 +79,7 @@ test('unknown nutrient remains null in progress, invalid inputs rejected',async(
   assert.equal((await request('/api/entries','POST',{id:randomUUID(),date:'2026-02-20',meal:'Cena',food:f,quantity:-1})).status,400);
   assert.equal((await request('/api/progress?from=2000-01-01&to=2026-01-01')).status,400);
   assert.equal((await request('/api/search?provider=usda&q=rice')).status,503);
+  assert.equal((await request('/api/search?provider=none&q=oats')).body.mine[0].name,'Test oats');
 });
 test('production authentication rejects bypass and enforces cookie and write origin',async()=>{
   const app=createApp(client,{env:{NODE_ENV:'production',DEV_AUTH_BYPASS:'1',APP_PASSWORD:'test-password-only',APP_ORIGIN:'https://nutri.example.test'}});

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import Modal from './Modal.jsx'
 
 export default function Scanner({ onResult, onClose }) {
-  const videoRef = useRef(null); const controls = useRef(null); const [error, setError] = useState('')
+  const videoRef = useRef(null); const controls = useRef(null)
+  const [error, setError] = useState(''); const [manual, setManual] = useState('')
   useEffect(() => {
     let alive = true
     import('@zxing/browser').then(async ({ BrowserMultiFormatReader }) => {
@@ -11,9 +12,18 @@ export default function Scanner({ onResult, onClose }) {
         controls.current = await reader.decodeFromConstraints({ video: { facingMode: { ideal: 'environment' } }, audio: false }, videoRef.current, result => {
           if (result && alive) { controls.current?.stop(); onResult(result.getText()) }
         })
-      } catch { if (alive) setError('No hemos podido abrir la cámara. Puedes escribir el código manualmente.') }
+      } catch { if (alive) setError(location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'No hemos podido abrir la cámara. Escribe el código a mano.' : 'La cámara necesita HTTPS. Abre la app por su dirección https y vuelve a intentarlo.') }
     })
     return () => { alive = false; controls.current?.stop() }
   }, [onResult])
-  return <Modal title="Escanear código" onClose={onClose}><video className="scanner" ref={videoRef} muted playsInline /><p className="muted">Apunta al código de barras o QR.</p>{error && <p className="error">{error}</p>}<button className="secondary full" onClick={onClose}>Introducir manualmente</button></Modal>
+  const submit = event => { event.preventDefault(); const code = manual.trim(); if (/^[0-9]{6,14}$/.test(code)) onResult(code) }
+  return <Modal title="Escanear código" onClose={onClose}>
+    <video className="scanner" ref={videoRef} muted playsInline />
+    <p className="muted">Apunta al código de barras del producto.</p>
+    {error && <p className="error">{error}</p>}
+    <form className="search-row" onSubmit={submit}>
+      <input inputMode="numeric" value={manual} onChange={event => setManual(event.target.value)} placeholder="O escribe el código" />
+      <button disabled={!/^[0-9]{6,14}$/.test(manual.trim())}>Buscar</button>
+    </form>
+  </Modal>
 }

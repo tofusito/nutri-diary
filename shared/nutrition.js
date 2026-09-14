@@ -1,4 +1,5 @@
 export const nutrientKeys = ['kcal', 'carbs', 'protein', 'fat'];
+export const meals = ['Desayuno', 'Comida', 'Merienda', 'Cena', 'Snacks'];
 
 function nonnegative(value, label) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error(`${label}: valor no válido`);

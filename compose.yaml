@@ -21,6 +21,19 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+  # Opt-in: `docker compose --profile tunnel up -d`. Routes the public hostname
+  # to http://app:3100 inside the compose network. With a host-installed
+  # cloudflared, skip this service and point the tunnel at 127.0.0.1:3100.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Set TUNNEL_TOKEN in .env to run the tunnel}
+    depends_on:
+      app:
+        condition: service_started
   mongo:
     image: mongo:8.0
     restart: unless-stopped

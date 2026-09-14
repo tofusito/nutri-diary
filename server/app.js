@@ -8,15 +8,17 @@ import {
   validDate,
 } from '../shared/nutrition.js';
 
-const MEALS = new Set(['Desayuno', 'Comida', 'Cena', 'Snacks']);
+const MEALS = new Set(['Desayuno', 'Comida', 'Merienda', 'Cena', 'Snacks']);
+const MEAL_ORDER = ['Desayuno', 'Comida', 'Merienda', 'Cena', 'Snacks'];
 const ACTIVITIES = new Set([1.2, 1.375, 1.55, 1.725, 1.9]);
 // OFF permits 15 product or 10 search reads per minute. A shared 6.1s queue
 // stays below both limits, including mixed request traffic.
 const OFF_MIN_INTERVAL_MS = 6_100;
 const OFF_CACHE_MS = 30 * 24 * 60 * 60 * 1_000;
+const OFF_MISS_CACHE_MS = 24 * 60 * 60 * 1_000;
 const SESSION_MS = 7 * 24 * 60 * 60 * 1_000;
 
-const defaultProfile = () => ({ carbs: 0, protein: 0, fat: 0 });
+const defaultProfile = () => ({ carbs: 0, protein: 0, fat: 0, kcal: 0 });
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isUuid = (value) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const finiteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
@@ -84,13 +86,19 @@ function normalizeFood(value, { requireId = false } = {}) {
     source: typeof value.source === 'string' ? value.source : undefined,
     sourceId: typeof value.sourceId === 'string' ? value.sourceId : undefined,
     recipe: isObject(value.recipe) ? clone(value.recipe) : undefined,
+    quantityText: typeof value.quantityText === 'string' ? value.quantityText.slice(0, 60) : undefined,
+    image: typeof value.image === 'string' && /^https:\/\//.test(value.image) ? value.image.slice(0, 500) : undefined,
   };
   return Object.fromEntries(Object.entries(food).filter(([, item]) => item !== undefined));
 }
 
-function normalizeProfile(value) {
+function normalizeProfile(value, { requireName = false } = {}) {
   assert(isObject(value), 'Perfil inválido.');
   const profile = {};
+  if (value.name !== undefined && value.name !== null) {
+    assert(typeof value.name === 'string' && value.name.trim().length > 0 && value.name.trim().length <= 60, 'El nombre del perfil es obligatorio (máx. 60 caracteres).');
+    profile.name = value.name.trim();
+  } else if (requireName) throw new ApiError(400, 'El nombre del perfil es obligatorio.');
   for (const key of ['carbs', 'protein', 'fat']) {
     assert(finiteNumber(value[key]) && value[key] >= 0, `Objetivo inválido: ${key}.`);
     profile[key] = value[key];
@@ -153,6 +161,7 @@ function fromOff(product) {
     brand: product.brands || undefined, barcode: product.code || undefined,
     nutrients: { kcal: numberOrNull(nutrients['energy-kcal_100g']), carbs: numberOrNull(nutrients.carbohydrates_100g), protein: numberOrNull(nutrients.proteins_100g), fat: numberOrNull(nutrients.fat_100g) },
     basis, ...(basisUncertain ? { basisUncertain: true } : {}), source: 'openfoodfacts', sourceId: product.code || undefined,
+    quantityText: product.quantity || undefined, image: product.image_front_small_url || product.image_small_url || undefined,
   };
 }
 
@@ -166,6 +175,7 @@ export function createApp(databaseOrClient, options = {}) {
   const lookupCache = catalog.collection('lookup_cache');
   const searchCache = catalog.collection('search_cache');
   const profileCollection = tracking.collection('profile');
+  const profiles = tracking.collection('profiles');
   const entries = tracking.collection('entries');
   const goals = tracking.collection('goals');
   const sessions = new Map();
@@ -240,17 +250,73 @@ export function createApp(databaseOrClient, options = {}) {
   });
   app.use('/api', requireSameOrigin, requireAuth);
 
-  app.get('/api/profile', async (req, res) => {
-    const profile = publicDocument(await profileCollection.findOne({ key: 'primary' }));
-    res.json(profile ? profile.value : defaultProfile());
+  /** Profiles. One diary per person; the food catalog is shared between them. */
+  async function ensureDefaultProfile() {
+    const existing = await profiles.find({}, { projection: { _id: 0 } }).sort({ createdAt: 1 }).limit(1).toArray();
+    if (existing[0]) return existing[0];
+    const legacy = publicDocument(await profileCollection.findOne({ key: 'primary' }))?.value;
+    const created = { id: crypto.randomUUID(), name: 'Perfil 1', ...defaultProfile(), ...(legacy || {}), createdAt: new Date() };
+    created.kcal = macroCalories(created);
+    await profiles.insertOne({ ...created });
+    await Promise.all([
+      entries.updateMany({ profileId: { $exists: false } }, { $set: { profileId: created.id } }),
+      goals.updateMany({ profileId: { $exists: false } }, { $set: { profileId: created.id } }),
+    ]);
+    return publicDocument(created);
+  }
+  async function resolveProfileId(req) {
+    const requested = req.query.profile ?? req.body?.profileId;
+    if (requested !== undefined && requested !== null && requested !== '') {
+      assert(isUuid(requested), 'Perfil inválido.');
+      const found = await profiles.findOne({ id: requested }, { projection: { _id: 0, id: 1 } });
+      if (!found) throw new ApiError(404, 'Perfil no encontrado.');
+      return requested;
+    }
+    return (await ensureDefaultProfile()).id;
+  }
+  async function saveProfile(id, body) {
+    const profile = normalizeProfile(body);
+    const effectiveDate = body.effectiveDate || localDate();
+    assert(typeof effectiveDate === 'string' && validDate(effectiveDate), 'Fecha efectiva inválida.');
+    const current = await profiles.findOne({ id }, { projection: { _id: 0 } });
+    if (!current) throw new ApiError(404, 'Perfil no encontrado.');
+    const saved = { ...current, ...profile, id };
+    await profiles.updateOne({ id }, { $set: { ...saved, updatedAt: new Date() } });
+    await goals.updateOne({ profileId: id, effectiveDate }, { $set: { profileId: id, effectiveDate, ...profile, updatedAt: new Date() } }, { upsert: true });
+    return saved;
+  }
+
+  app.get('/api/profiles', async (req, res) => {
+    await ensureDefaultProfile();
+    res.json(await profiles.find({}, { projection: { _id: 0 } }).sort({ createdAt: 1 }).toArray());
   });
-  app.put('/api/profile', async (req, res) => {
-    const profile = normalizeProfile(req.body);
+  app.post('/api/profiles', async (req, res) => {
+    const profile = normalizeProfile(req.body, { requireName: true });
     const effectiveDate = req.body.effectiveDate || localDate();
     assert(typeof effectiveDate === 'string' && validDate(effectiveDate), 'Fecha efectiva inválida.');
-    await profileCollection.updateOne({ key: 'primary' }, { $set: { key: 'primary', value: profile, updatedAt: new Date() } }, { upsert: true });
-    await goals.updateOne({ effectiveDate }, { $set: { effectiveDate, ...profile, updatedAt: new Date() } }, { upsert: true });
-    res.json(profile);
+    const created = { id: crypto.randomUUID(), ...profile, createdAt: new Date() };
+    if ((await profiles.countDocuments({}, { limit: 20 })) >= 12) throw new ApiError(400, 'Has alcanzado el máximo de perfiles.');
+    await profiles.insertOne({ ...created });
+    await goals.updateOne({ profileId: created.id, effectiveDate }, { $set: { profileId: created.id, effectiveDate, ...profile, updatedAt: new Date() } }, { upsert: true });
+    res.status(201).json(publicDocument(created));
+  });
+  app.put('/api/profiles/:id', async (req, res) => {
+    assert(isUuid(req.params.id), 'Perfil inválido.');
+    res.json(publicDocument(await saveProfile(req.params.id, req.body)));
+  });
+  app.delete('/api/profiles/:id', async (req, res) => {
+    assert(isUuid(req.params.id), 'Perfil inválido.');
+    const total = await profiles.countDocuments();
+    if (total <= 1) throw new ApiError(400, 'No puedes eliminar el único perfil.');
+    await profiles.deleteOne({ id: req.params.id });
+    await Promise.all([entries.deleteMany({ profileId: req.params.id }), goals.deleteMany({ profileId: req.params.id })]);
+    res.json({ ok: true });
+  });
+  // Legacy single-profile endpoints, kept so older clients and exports keep working.
+  app.get('/api/profile', async (req, res) => res.json(publicDocument(await ensureDefaultProfile())));
+  app.put('/api/profile', async (req, res) => {
+    const id = await resolveProfileId(req);
+    res.json(publicDocument(await saveProfile(id, req.body)));
   });
 
   app.get('/api/foods', async (req, res) => {
@@ -262,10 +328,7 @@ export function createApp(databaseOrClient, options = {}) {
   });
   app.post('/api/foods', async (req, res) => {
     const food = normalizeFood({ ...req.body, id: crypto.randomUUID() }, { requireId: true });
-    try { await foods.insertOne(food); } catch (error) {
-      if (error?.code === 11000 && food.barcode) throw new ApiError(409, 'Ya existe un alimento con ese código de barras.');
-      throw error;
-    }
+    await foods.insertOne(food);
     res.status(201).json(food);
   });
   app.patch('/api/foods/:id', async (req, res) => {
@@ -273,10 +336,7 @@ export function createApp(databaseOrClient, options = {}) {
     const current = await foods.findOne({ id: req.params.id });
     if (!current) throw new ApiError(404, 'Alimento no encontrado.');
     const food = normalizeFood({ ...publicDocument(current), ...req.body, id: req.params.id }, { requireId: true });
-    try { await foods.updateOne({ id: food.id }, { $set: food }); } catch (error) {
-      if (error?.code === 11000 && food.barcode) throw new ApiError(409, 'Ya existe un alimento con ese código de barras.');
-      throw error;
-    }
+    await foods.updateOne({ id: food.id }, { $set: food });
     res.json(food);
   });
 
@@ -286,6 +346,8 @@ export function createApp(databaseOrClient, options = {}) {
       if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
       lastOffRequest = Date.now();
       const response = await fetch(url, { headers: { 'User-Agent': offUserAgent }, signal: AbortSignal.timeout(10_000) });
+      // A 404 is a real answer: the product is simply not catalogued there.
+      if (response.status === 404) return null;
       if (!response.ok) throw new ApiError(502, 'Open Food Facts no está disponible.');
       return response.json();
     };
@@ -293,62 +355,97 @@ export function createApp(databaseOrClient, options = {}) {
     offQueue = pending.catch(() => {});
     return pending;
   }
+  /** Open Food Facts products for one barcode. Barcodes are reused between
+   *  different products, so this returns every match rather than the first. */
+  async function offByBarcode(barcode) {
+    const cached = await lookupCache.findOne({ barcode, expiresAt: { $gt: new Date() } });
+    if (Array.isArray(cached?.foods)) return cached.foods;
+    const search = new URL('https://world.openfoodfacts.org/api/v2/search');
+    search.search = new URLSearchParams({ code: barcode, page_size: '20' });
+    let products = (await offFetch(search))?.products || [];
+    if (!products.length) {
+      const payload = await offFetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`);
+      products = payload?.status === 1 && payload.product ? [payload.product] : [];
+    }
+    const result = products.map((product) => ({ ...fromOff(product), barcode: product.code || barcode }));
+    // An unknown barcode may be added upstream any day, so remember it briefly only.
+    const ttl = result.length ? OFF_CACHE_MS : OFF_MISS_CACHE_MS;
+    await lookupCache.updateOne({ barcode }, { $set: { barcode, foods: result, expiresAt: new Date(Date.now() + ttl) } }, { upsert: true });
+    return result;
+  }
+  async function offBySearch(query) {
+    const cacheKey = query.toLocaleLowerCase('es');
+    const cached = await searchCache.findOne({ cacheKey, expiresAt: { $gt: new Date() } }, { projection: { _id: 0, foods: 1 } });
+    if (cached?.foods) return cached.foods;
+    const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
+    url.search = new URLSearchParams({ search_terms: query, search_simple: '1', action: 'process', json: '1', page_size: '20' });
+    const payload = await offFetch(url);
+    const result = (payload?.products || []).map(fromOff);
+    await searchCache.updateOne({ cacheKey }, { $set: { cacheKey, foods: result, expiresAt: new Date(Date.now() + OFF_CACHE_MS) } }, { upsert: true });
+    return result;
+  }
+  async function usdaBySearch(query) {
+    const url = new URL('https://api.nal.usda.gov/fdc/v1/foods/search');
+    url.search = new URLSearchParams({ api_key: env.USDA_API_KEY, query, pageSize: '20' });
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new ApiError(502, 'USDA no está disponible.');
+    const payload = await response.json();
+    return (payload.foods || []).map((item) => {
+      const nutrient = (id, unit) => item.foodNutrients?.find((row) => row.nutrientId === id && String(row.unitName || '').toUpperCase() === unit)?.value ?? null;
+      return { id: crypto.randomUUID(), name: item.description, brand: item.brandOwner || undefined, basis: 'g', nutrients: { kcal: nutrient(1008, 'KCAL'), carbs: nutrient(1005, 'G'), protein: nutrient(1003, 'G'), fat: nutrient(1004, 'G') }, source: 'usda', sourceId: String(item.fdcId) };
+    });
+  }
+  const myFoods = (filter) => foods.find(filter, { projection: { _id: 0 } }).sort({ favorite: -1, name: 1 }).limit(25).toArray();
+
   app.get('/api/lookup/:barcode', async (req, res) => {
     const barcode = req.params.barcode;
-    assert(/^[0-9]{8,14}$/.test(barcode), 'Código de barras inválido.');
-    const personal = await foods.findOne({ barcode }, { projection: { _id: 0 } });
-    if (personal) return res.json(personal);
-    const cached = await lookupCache.findOne({ barcode, expiresAt: { $gt: new Date() } });
-    if (cached?.food) return res.json(publicDocument(cached.food));
-    const payload = await offFetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`);
-    if (payload.status !== 1 || !payload.product) throw new ApiError(404, 'Producto no encontrado.');
-    const food = fromOff(payload.product);
-    food.barcode = barcode;
-    await lookupCache.updateOne({ barcode }, { $set: { barcode, food, expiresAt: new Date(Date.now() + OFF_CACHE_MS) } }, { upsert: true });
-    res.json(food);
+    assert(/^[0-9]{6,14}$/.test(barcode), 'Código de barras inválido.');
+    const mine = await myFoods({ barcode });
+    let external = [];
+    let externalError;
+    try { external = await offByBarcode(barcode); } catch (error) { externalError = error.message || 'Open Food Facts no está disponible.'; }
+    res.json({ barcode, mine, external, ...(externalError ? { externalError } : {}) });
   });
   app.get('/api/search', async (req, res) => {
-    const provider = req.query.provider;
+    const provider = req.query.provider || 'off';
     const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     assert(query.length >= 2 && query.length <= 100, 'La búsqueda debe tener entre 2 y 100 caracteres.');
-    if (provider === 'off') {
-      const cacheKey = query.toLocaleLowerCase('es');
-      const cached = await searchCache.findOne({ cacheKey, expiresAt: { $gt: new Date() } }, { projection: { _id: 0, foods: 1 } });
-      if (cached?.foods) return res.json(cached.foods);
-      const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
-      url.search = new URLSearchParams({ search_terms: query, search_simple: '1', action: 'process', json: '1', page_size: '20' });
-      const payload = await offFetch(url);
-      const result = (payload.products || []).map(fromOff);
-      await searchCache.updateOne({ cacheKey }, { $set: { cacheKey, foods: result, expiresAt: new Date(Date.now() + OFF_CACHE_MS) } }, { upsert: true });
-      return res.json(result);
+    assert(['off', 'usda', 'none'].includes(provider), 'Proveedor de búsqueda inválido.');
+    if (provider === 'usda' && !env.USDA_API_KEY) throw new ApiError(503, 'La búsqueda USDA no está configurada: falta USDA_API_KEY.');
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const mine = await myFoods({ $or: [{ name: { $regex: escaped, $options: 'i' } }, { brand: { $regex: escaped, $options: 'i' } }, { barcode: { $regex: escaped, $options: 'i' } }] });
+    const isBarcode = /^[0-9]{6,14}$/.test(query);
+    let external = [];
+    let externalError;
+    if (provider !== 'none') {
+      try { external = provider === 'usda' ? await usdaBySearch(query) : isBarcode ? await offByBarcode(query) : await offBySearch(query); }
+      catch (error) { externalError = error.message || 'La búsqueda externa no está disponible.'; }
     }
-    if (provider === 'usda') {
-      if (!env.USDA_API_KEY) throw new ApiError(503, 'La búsqueda USDA no está configurada: falta USDA_API_KEY.');
-      const url = new URL('https://api.nal.usda.gov/fdc/v1/foods/search');
-      url.search = new URLSearchParams({ api_key: env.USDA_API_KEY, query, pageSize: '20' });
-      const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-      if (!response.ok) throw new ApiError(502, 'USDA no está disponible.');
-      const payload = await response.json();
-      return res.json((payload.foods || []).map((item) => {
-        const nutrient = (id, unit) => item.foodNutrients?.find((row) => row.nutrientId === id && String(row.unitName || '').toUpperCase() === unit)?.value ?? null;
-        return { id: crypto.randomUUID(), name: item.description, brand: item.brandOwner || undefined, basis: 'g', nutrients: { kcal: nutrient(1008, 'KCAL'), carbs: nutrient(1005, 'G'), protein: nutrient(1003, 'G'), fat: nutrient(1004, 'G') }, source: 'usda', sourceId: String(item.fdcId) };
-      }));
-    }
-    throw new ApiError(400, 'Proveedor de búsqueda inválido.');
+    res.json({ mine, external, ...(externalError ? { externalError } : {}) });
+  });
+
+  app.delete('/api/foods/:id', async (req, res) => {
+    assert(isUuid(req.params.id), 'El id del alimento debe ser un UUID.');
+    await foods.deleteOne({ id: req.params.id });
+    res.json({ ok: true });
   });
 
   app.get('/api/entries', async (req, res) => {
     const date = req.query.date;
     assert(typeof date === 'string' && validDate(date), 'Fecha inválida.');
-    res.json(await entries.find({ date }, { projection: { _id: 0, totals: 0 } }).sort({ meal: 1, id: 1 }).toArray());
+    const profileId = await resolveProfileId(req);
+    const rows = await entries.find({ date, profileId }, { projection: { _id: 0, totals: 0 } }).toArray();
+    rows.sort((a, b) => MEAL_ORDER.indexOf(a.meal) - MEAL_ORDER.indexOf(b.meal) || String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? '')) || a.id.localeCompare(b.id));
+    res.json(rows.map(({ createdAt, ...row }) => row));
   });
   app.post('/api/entries', async (req, res) => {
     const entry = normalizeEntry(req.body);
-    const existing = await entries.findOne({ id: entry.id }, { projection: { _id: 0, totals: 0 } });
+    const profileId = await resolveProfileId(req);
+    const existing = await entries.findOne({ id: entry.id }, { projection: { _id: 0, totals: 0, createdAt: 0 } });
     if (existing) return res.json(existing);
-    const stored = { ...entry, food: clone(entry.food), totals: scaleNutrients(entry.food.nutrients, entry.quantity), createdAt: new Date() };
+    const stored = { ...entry, profileId, food: clone(entry.food), totals: scaleNutrients(entry.food.nutrients, entry.quantity), createdAt: new Date() };
     try { await entries.insertOne(stored); } catch (error) {
-      if (error?.code === 11000) return res.json(await entries.findOne({ id: entry.id }, { projection: { _id: 0, totals: 0 } }));
+      if (error?.code === 11000) return res.json(await entries.findOne({ id: entry.id }, { projection: { _id: 0, totals: 0, createdAt: 0 } }));
       throw error;
     }
     return res.status(201).json(entry);
@@ -361,7 +458,7 @@ export function createApp(databaseOrClient, options = {}) {
     const entry = { ...publicDocument(current), ...changes, id: req.params.id };
     entry.totals = scaleNutrients(entry.food.nutrients, entry.quantity);
     await entries.updateOne({ id: entry.id }, { $set: entry });
-    const { totals, _id, ...result } = entry;
+    const { totals, _id, createdAt, ...result } = entry;
     res.json(result);
   });
   app.delete('/api/entries/:id', async (req, res) => {
@@ -374,9 +471,10 @@ export function createApp(databaseOrClient, options = {}) {
     assert(typeof from === 'string' && validDate(from) && typeof to === 'string' && validDate(to) && from <= to, 'Rango de fechas inválido.');
     const rangeDays = Math.floor((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
     assert(rangeDays <= 366, 'El rango máximo es de 366 días.');
+    const profileId = await resolveProfileId(req);
     const [entryRows, goalRows] = await Promise.all([
-      entries.find({ date: { $gte: from, $lte: to } }).sort({ date: 1 }).toArray(),
-      goals.find({ effectiveDate: { $lte: to } }, { projection: { _id: 0 } }).sort({ effectiveDate: 1 }).toArray(),
+      entries.find({ profileId, date: { $gte: from, $lte: to } }).sort({ date: 1 }).toArray(),
+      goals.find({ profileId, effectiveDate: { $lte: to } }, { projection: { _id: 0 } }).sort({ effectiveDate: 1 }).toArray(),
     ]);
     const byDate = new Map();
     for (const entry of entryRows) {
@@ -392,10 +490,11 @@ export function createApp(databaseOrClient, options = {}) {
     res.json(output);
   });
   app.get('/api/export', async (req, res) => {
-    const [profile, allFoods, allEntries, allGoals] = await Promise.all([
-      profileCollection.findOne({ key: 'primary' }), foods.find({}, { projection: { _id: 0 } }).toArray(), entries.find({}, { projection: { _id: 0 } }).toArray(), goals.find({}, { projection: { _id: 0 } }).sort({ effectiveDate: 1 }).toArray(),
+    await ensureDefaultProfile();
+    const [allProfiles, allFoods, allEntries, allGoals] = await Promise.all([
+      profiles.find({}, { projection: { _id: 0 } }).sort({ createdAt: 1 }).toArray(), foods.find({}, { projection: { _id: 0 } }).toArray(), entries.find({}, { projection: { _id: 0 } }).toArray(), goals.find({}, { projection: { _id: 0 } }).sort({ effectiveDate: 1 }).toArray(),
     ]);
-    res.json({ profile: profile?.value || defaultProfile(), foods: allFoods, entries: allEntries.map(publicDocument), goals: allGoals });
+    res.json({ profiles: allProfiles, profile: allProfiles[0] || defaultProfile(), foods: allFoods, entries: allEntries.map(publicDocument), goals: allGoals });
   });
 
   app.use((error, req, res, next) => {
@@ -409,15 +508,28 @@ export function createApp(databaseOrClient, options = {}) {
 }
 
 export async function ensureIndexes(client) {
+  const catalog = client.db('nutrition_catalog');
+  const tracking = client.db('nutrition_tracking');
+  // Barcodes are reused across different products, so the personal catalog no
+  // longer treats them as unique. Drop the old unique index if it is still there.
+  await dropIndex(catalog.collection('foods'), 'barcode_unique');
+  await dropIndex(tracking.collection('goals'), 'effectiveDate_1');
   await Promise.all([
-    client.db('nutrition_catalog').collection('foods').createIndex({ id: 1 }, { unique: true }),
-    client.db('nutrition_catalog').collection('foods').createIndex({ barcode: 1 }, { name: 'barcode_unique', unique: true, partialFilterExpression: { barcode: { $type: 'string' } } }),
-    client.db('nutrition_catalog').collection('lookup_cache').createIndex({ barcode: 1 }, { unique: true }),
-    client.db('nutrition_catalog').collection('lookup_cache').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-    client.db('nutrition_catalog').collection('search_cache').createIndex({ cacheKey: 1 }, { unique: true }),
-    client.db('nutrition_catalog').collection('search_cache').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-    client.db('nutrition_tracking').collection('entries').createIndex({ id: 1 }, { unique: true }),
-    client.db('nutrition_tracking').collection('entries').createIndex({ date: 1 }),
-    client.db('nutrition_tracking').collection('goals').createIndex({ effectiveDate: 1 }, { unique: true }),
+    catalog.collection('foods').createIndex({ id: 1 }, { unique: true }),
+    catalog.collection('foods').createIndex({ barcode: 1 }),
+    catalog.collection('foods').createIndex({ name: 1 }),
+    catalog.collection('lookup_cache').createIndex({ barcode: 1 }, { unique: true }),
+    catalog.collection('lookup_cache').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    catalog.collection('search_cache').createIndex({ cacheKey: 1 }, { unique: true }),
+    catalog.collection('search_cache').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    tracking.collection('profiles').createIndex({ id: 1 }, { unique: true }),
+    tracking.collection('profiles').createIndex({ createdAt: 1 }),
+    tracking.collection('entries').createIndex({ id: 1 }, { unique: true }),
+    tracking.collection('entries').createIndex({ profileId: 1, date: 1 }),
+    tracking.collection('goals').createIndex({ profileId: 1, effectiveDate: 1 }, { unique: true }),
   ]);
+}
+
+async function dropIndex(collection, name) {
+  try { await collection.dropIndex(name); } catch { /* index absent: nothing to drop */ }
 }
