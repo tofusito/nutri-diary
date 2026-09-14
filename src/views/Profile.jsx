@@ -2,25 +2,30 @@ import { useEffect, useState } from 'react'
 import { estimateEnergy, macroCalories, number } from '../lib/nutrition.js'
 
 const activities = [[1.2, 'Sedentario', 'poco o nada de ejercicio'], [1.375, 'Ligera', '1-3 días por semana'], [1.55, 'Moderada', '3-5 días por semana'], [1.725, 'Alta', '6-7 días por semana'], [1.9, 'Muy alta', 'trabajo físico o doble sesión']]
-const blank = name => ({ name, carbs: 0, protein: 0, fat: 0, sex: 'male', activity: 1.55 })
+const blank = name => ({ id: crypto.randomUUID(), name, carbs: 0, protein: 0, fat: 0, sex: 'male', activity: 1.55 })
 
 export default function Profile({ profiles, profileId, onSave, onCreate, onDelete, onSwitch, onLogout, pending }) {
   const active = profiles.find(item => item.id === profileId) || profiles[0] || blank('')
   const [draft, setDraft] = useState(active)
   const [message, setMessage] = useState('')
   const [creating, setCreating] = useState(false)
-  useEffect(() => { setDraft(active); setMessage('') }, [active.id, creating])
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { setDraft(active); setCreating(false); setMessage('') }, [active.id])
 
   const set = (key, value) => setDraft(previous => ({ ...previous, [key]: number(value) }))
-  const kcal = macroCalories(draft)
+  const validMacros = ['carbs', 'protein', 'fat'].every(key => Number.isFinite(draft[key]) && draft[key] >= 0)
+  const kcal = validMacros ? macroCalories(draft) : '—'
   let estimate = null
   try { estimate = draft.weight && draft.height && draft.age ? estimateEnergy({ ...draft, sex: draft.sex || 'male', activity: draft.activity || 1.2 }) : null } catch { estimate = null }
 
   const submit = async event => {
     event.preventDefault()
+    if (saving) return
+    if (!validMacros) return setMessage('Completa los tres macros con un número igual o mayor que cero.')
     if (!String(draft.name || '').trim()) return setMessage('Ponle un nombre al perfil.')
+    setSaving(true)
     try { await (creating ? onCreate(draft) : onSave(draft)); setCreating(false); setMessage('Perfil guardado.') }
-    catch (error) { setMessage(error.message) }
+    catch (error) { setMessage(error.message) } finally { setSaving(false) }
   }
   const applyEstimate = () => {
     if (!estimate) return
@@ -59,7 +64,7 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
         <p className="muted">Las calorías salen de tus macros: 4 kcal/g de hidratos y proteína, 9 kcal/g de grasa.</p>
         <div className="kcal-result"><strong>{kcal} kcal</strong><span>objetivo de {draft.name || 'este perfil'}</span></div>
         <div className="macro-inputs">{[['carbs', 'Hidratos'], ['protein', 'Proteínas'], ['fat', 'Grasas']].map(([key, label]) =>
-          <label key={key}>{label}<input type="number" min="0" value={draft[key] ?? 0} onChange={event => set(key, event.target.value)} /><small>gramos</small></label>)}</div>
+          <label key={key}>{label}<input aria-label={label} required type="number" min="0" step="any" inputMode="decimal" value={draft[key] ?? ''} onChange={event => set(key, event.target.value)} /><small>gramos</small></label>)}</div>
       </section>
 
       <section>
@@ -71,8 +76,8 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
         </> : <p className="empty">Completa peso, altura y edad para verla.</p>}
       </section>
 
-      <button type="submit">{creating ? 'Crear perfil' : 'Guardar perfil'}</button>
-      {message && <p className={message === 'Perfil guardado.' ? 'success' : 'error'}>{message}</p>}
+      <button type="submit" disabled={saving}>{saving ? 'Guardando…' : creating ? 'Crear perfil' : 'Guardar perfil'}</button>
+      {message && <p role="status" className={message === 'Perfil guardado.' ? 'success' : 'error'}>{message}</p>}
     </form>
 
     <section className="account">

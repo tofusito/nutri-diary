@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { macroCalories } from '../lib/nutrition.js'
+import { useRef, useState } from 'react'
+import { safeMacroCalories } from '../lib/nutrition.js'
 
 /** Shown right after signing in: the diary always belongs to one person, so the
  *  profile is chosen once here instead of being switched around inside the app. */
@@ -7,11 +7,12 @@ export default function ChooseProfile({ profiles, onSelect, onCreate }) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+  const createId = useRef(crypto.randomUUID())
 
   const create = async event => {
     event.preventDefault()
     if (!name.trim()) return
-    try { await onCreate({ name: name.trim(), carbs: 0, protein: 0, fat: 0, sex: 'male', activity: 1.55 }) }
+    try { await onCreate({ id: createId.current, name: name.trim(), carbs: 0, protein: 0, fat: 0, sex: 'male', activity: 1.55 }) }
     catch (err) { setError(err.message) }
   }
 
@@ -23,7 +24,7 @@ export default function ChooseProfile({ profiles, onSelect, onCreate }) {
     <div className="chooser-list">{profiles.map(item =>
       <button key={item.id} className="chooser-card" onClick={() => onSelect(item.id)}>
         <span className="chooser-avatar">{item.name.trim().charAt(0).toUpperCase() || '·'}</span>
-        <span><strong>{item.name}</strong><small>{macroCalories(item) ? `${macroCalories(item)} kcal al día` : 'sin objetivo todavía'}</small></span>
+        <span><strong>{item.name}</strong><small>{safeMacroCalories(item) ? `${safeMacroCalories(item)} kcal al día` : 'sin objetivo todavía'}</small></span>
       </button>)}</div>
 
     {creating

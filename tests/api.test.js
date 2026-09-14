@@ -40,6 +40,13 @@ test('historical entries survive catalog corrections; edits recalculate and retr
   await request(`/api/entries/${entry.id}`,'DELETE');await request(`/api/entries/${entry.id}`,'DELETE');
   assert.equal((await request('/api/entries?date=2025-12-13')).body.length,0);
 });
+test('client food ids make a lost response safe to retry',async()=>{
+  const id=randomUUID();
+  const first=await request('/api/foods','POST',{...food(),id});
+  const second=await request('/api/foods','POST',{...food(),id});
+  assert.equal(first.status,201);assert.equal(second.status,200);assert.equal(second.body.id,id);
+  assert.equal((await request('/api/foods?q=Test%20oats')).body.filter(item=>item.id===id).length,1);
+});
 test('a shared barcode lists every personal food before external results',async()=>{
   const f=(await request('/api/foods','POST',{...food(),barcode:'8410000000001',favorite:true})).body;
   const sibling=(await request('/api/foods','POST',{...food(),name:'Reused barcode',barcode:'8410000000001'})).body;
@@ -57,8 +64,11 @@ test('a shared barcode lists every personal food before external results',async(
 test('profiles keep separate diaries, goals and deletion',async()=>{
   const mine=(await request('/api/profiles')).body;
   assert.equal(mine.length,1);
-  const other=(await request('/api/profiles','POST',{name:'Pareja',carbs:200,protein:120,fat:60,sex:'female',activity:1.375,effectiveDate:'2026-01-01'})).body;
+  const profilePayload={id:randomUUID(),name:'Pareja',carbs:200,protein:120,fat:60,sex:'female',activity:1.375,effectiveDate:'2026-01-01'};
+  const other=(await request('/api/profiles','POST',profilePayload)).body;
+  const retried=(await request('/api/profiles','POST',profilePayload)).body;
   assert.equal(other.kcal,1820);
+  assert.equal(retried.id,other.id);
   assert.equal((await request('/api/profiles')).body.length,2);
   const f=(await request('/api/foods','POST',food())).body;
   await request(`/api/entries?profile=${other.id}`,'POST',{id:randomUUID(),date:'2026-04-01',meal:'Merienda',food:f,quantity:100});

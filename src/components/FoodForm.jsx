@@ -12,6 +12,8 @@ export default function FoodForm({ initial, onSave, onCancel }) {
   const [food, setFood] = useState(initial || emptyFood())
   const [ocr, setOcr] = useState('')
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const set = (key, value) => setFood(previous => ({ ...previous, [key]: value }))
   const nutrient = (key, value) => setFood(previous => ({ ...previous, nutrients: { ...previous.nutrients, [key]: number(value) } }))
   const scanLabel = async file => {
@@ -20,10 +22,14 @@ export default function FoodForm({ initial, onSave, onCancel }) {
     try { const result = await recognizeLabel(file); setOcr(result.text); setFood(previous => ({ ...previous, nutrients: { ...previous.nutrients, ...result.nutrients } })) }
     catch { setOcr('No se pudo leer la etiqueta. Completa los campos a mano.') } finally { setLoading(false) }
   }
-  const submit = event => {
+  const submit = async event => {
     event.preventDefault()
     if (!food.name.trim()) return
-    onSave({ ...food, name: food.name.trim(), nutrients: Object.fromEntries(Object.entries(food.nutrients).map(([key, value]) => [key, number(value)])) })
+    if (saving || loading) return
+    setSaving(true); setError('')
+    try { await onSave({ ...food, name: food.name.trim(), nutrients: Object.fromEntries(Object.entries(food.nutrients).map(([key, value]) => [key, number(value)])) }) }
+    catch (err) { setError(err.message || 'No se pudo guardar. Inténtalo otra vez.') }
+    finally { setSaving(false) }
   }
   const unit = food.basis === 'ml' ? 'ml' : 'g'
 
@@ -35,7 +41,7 @@ export default function FoodForm({ initial, onSave, onCancel }) {
     </div>
     <fieldset><legend>Por 100 {unit}</legend>
       <div className="macro-inputs">{fields.map(([key, label]) =>
-        <label key={key}>{label}<input type="number" min="0" step="0.1" inputMode="decimal" value={food.nutrients[key] ?? ''} onChange={event => nutrient(key, event.target.value)} /></label>)}</div>
+        <label key={key}>{label}<input aria-label={label} type="number" min="0" step="0.1" inputMode="decimal" value={food.nutrients[key] ?? ''} onChange={event => nutrient(key, event.target.value)} /></label>)}</div>
       <p className="muted">Copia los valores de la etiqueta. Deja en blanco lo que no venga: se guarda como desconocido, no como cero.</p>
     </fieldset>
     <p className="muted">Se guarda en la biblioteca común: lo verán todos los perfiles.</p>
@@ -52,6 +58,7 @@ export default function FoodForm({ initial, onSave, onCancel }) {
       {food.id && <div className="qr-row"><QrCode foodId={food.id} /><span className="muted">QR privado: solo identifica este alimento en tu diario.</span></div>}
     </details>
 
-    <footer className="form-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="submit">Guardar alimento</button></footer>
+    {error && <p className="error" role="alert">{error}</p>}
+    <footer className="form-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="submit" disabled={saving || loading}>{saving ? 'Guardando…' : 'Guardar alimento'}</button></footer>
   </form>
 }

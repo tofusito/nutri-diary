@@ -289,7 +289,9 @@ export function createApp(databaseOrClient, options = {}) {
     const current = await profiles.findOne({ id }, { projection: { _id: 0 } });
     if (!current) throw new ApiError(404, 'Perfil no encontrado.');
     const saved = { ...current, ...profile, id };
-    await profiles.updateOne({ id }, { $set: { ...saved, updatedAt: new Date() } });
+    const unset = {};
+    for (const key of ['weight', 'height', 'age']) if (body[key] === null) { delete saved[key]; unset[key] = ''; }
+    await profiles.updateOne({ id }, { $set: { ...saved, updatedAt: new Date() }, ...(Object.keys(unset).length ? { $unset: unset } : {}) });
     await goals.updateOne({ profileId: id, effectiveDate }, { $set: { profileId: id, effectiveDate, ...profile, updatedAt: new Date() } }, { upsert: true });
     return saved;
   }
@@ -302,7 +304,13 @@ export function createApp(databaseOrClient, options = {}) {
     const profile = normalizeProfile(req.body, { requireName: true });
     const effectiveDate = req.body.effectiveDate || localDate();
     assert(typeof effectiveDate === 'string' && validDate(effectiveDate), 'Fecha efectiva inválida.');
-    const created = { id: crypto.randomUUID(), ...profile, createdAt: new Date() };
+    const requestedId = req.body?.id;
+    if (requestedId !== undefined) assert(isUuid(requestedId), 'El id del perfil debe ser un UUID.');
+    if (requestedId) {
+      const existing = await profiles.findOne({ id: requestedId }, { projection: { _id: 0 } });
+      if (existing) return res.json(existing);
+    }
+    const created = { id: requestedId || crypto.randomUUID(), ...profile, createdAt: new Date() };
     if ((await profiles.countDocuments({}, { limit: 20 })) >= 12) throw new ApiError(400, 'Has alcanzado el máximo de perfiles.');
     await profiles.insertOne({ ...created });
     await goals.updateOne({ profileId: created.id, effectiveDate }, { $set: { profileId: created.id, effectiveDate, ...profile, updatedAt: new Date() } }, { upsert: true });
@@ -335,9 +343,18 @@ export function createApp(databaseOrClient, options = {}) {
     res.json(result);
   });
   app.post('/api/foods', async (req, res) => {
-    const food = normalizeFood({ ...req.body, id: crypto.randomUUID() }, { requireId: true });
-    await foods.insertOne(food);
-    res.status(201).json(food);
+    const requestedId = req.body?.id;
+    const food = normalizeFood(req.body, { requireId: requestedId !== undefined });
+    if (food.id) {
+      const existing = await foods.findOne({ id: food.id });
+      if (existing) return res.json(publicDocument(existing));
+    }
+    const created = { ...food, id: food.id || crypto.randomUUID() };
+    try { await foods.insertOne(created); } catch (error) {
+      if (error?.code === 11000 && created.id) return res.json(publicDocument(await foods.findOne({ id: created.id })));
+      throw error;
+    }
+    res.status(201).json(created);
   });
   app.patch('/api/foods/:id', async (req, res) => {
     assert(isUuid(req.params.id), 'El id del alimento debe ser un UUID.');

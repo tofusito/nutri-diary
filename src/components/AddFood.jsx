@@ -22,7 +22,10 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   const [creating, setCreating] = useState(null)
   const [quantity, setQuantity] = useState(100)
   const [alsoFor, setAlsoFor] = useState({})
+  const [saving, setSaving] = useState(false)
+  const validQuantity = value => Number.isFinite(Number(value)) && Number(value) > 0
   const request = useRef(0)
+  const entryIds = useRef({})
 
   const local = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -33,8 +36,9 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
 
   useEffect(() => {
     const text = query.trim()
-    if (text.length < 2) { setResult({ mine: [], external: [] }); setBarcode(''); return }
     const ticket = ++request.current
+    setResult({ mine: [], external: [] }); setLoading(false); setMessage('')
+    if (text.length < 2) { setBarcode(''); return }
     const timer = setTimeout(async () => {
       setLoading(true)
       try {
@@ -42,7 +46,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
         if (ticket === request.current) { setResult(data); setBarcode(/^[0-9]{6,14}$/.test(text) ? text : ''); setMessage(data.externalError || '') }
       } catch (error) { if (ticket === request.current) setMessage(error.message) } finally { if (ticket === request.current) setLoading(false) }
     }, 450)
-    return () => clearTimeout(timer)
+    return () => { clearTimeout(timer); request.current++ }
   }, [query])
 
   const scan = async code => {
@@ -56,22 +60,25 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
     } catch (error) { if (ticket === request.current) setMessage(error.message) } finally { if (ticket === request.current) setLoading(false) }
   }
 
-  const choose = food => { setChosen(food); setQuantity(food.servingSize || 100) }
+  const choose = food => { entryIds.current = {}; setChosen(food); setQuantity(food.servingSize || 100) }
 
   const confirm = async () => {
-    if (!chosen || !(Number(quantity) > 0)) return
+    if (saving) return
+    if (!chosen || !validQuantity(quantity) || !Object.values(alsoFor).every(validQuantity)) return setMessage('Introduce una cantidad mayor que cero para cada persona.')
+    setSaving(true); setMessage('')
     let food = chosen
     try {
       if (!foods.some(item => item.id === chosen.id)) {
-        const { id, ...body } = chosen
-        food = await api('/api/foods', { method: 'POST', body: JSON.stringify(body) })
+        food = await api('/api/foods', { method: 'POST', body: JSON.stringify(chosen) })
         onCreated(food)
+        setChosen(food)
       }
       const targets = [{ id: profile.id, quantity: Number(quantity) }]
       for (const [id, grams] of Object.entries(alsoFor)) if (Number(grams) > 0) targets.push({ id, quantity: Number(grams) })
-      onAdd({ food, meal, targets })
+      const ids = Object.fromEntries(targets.map(target => [target.id, entryIds.current[target.id] || (entryIds.current[target.id] = crypto.randomUUID())]))
+      await onAdd({ food, meal, targets, entryIds: ids })
       onClose()
-    } catch (error) { setMessage(error.message) }
+    } catch (error) { setMessage(error.message) } finally { setSaving(false) }
   }
 
   const mine = useMemo(() => {
@@ -82,13 +89,13 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
 
   if (creating) return <Modal title="Nuevo alimento" onClose={() => setCreating(null)}>
     <FoodForm initial={creating} onCancel={() => setCreating(null)} onSave={async food => {
-      try { const { id, ...body } = food; const saved = await api('/api/foods', { method: 'POST', body: JSON.stringify(body) }); onCreated(saved); setCreating(null); choose(saved) }
-      catch (error) { setMessage(error.message); setCreating(null) }
+      try { const saved = await api('/api/foods', { method: 'POST', body: JSON.stringify(food) }); onCreated(saved); setCreating(null); choose(saved) }
+      catch (error) { throw error }
     }} />
   </Modal>
 
   const others = (profiles || []).filter(item => item.id !== profile?.id)
-  const portion = chosen ? scaleNutrients(chosen.nutrients, Number(quantity) > 0 ? Number(quantity) : 0) : null
+  const portion = chosen ? scaleNutrients(chosen.nutrients, validQuantity(quantity) ? Number(quantity) : 0) : null
   if (chosen) return <Modal title={`Añadir a ${meal}`} onClose={() => setChosen(null)}>
     <div className="chosen"><strong>{chosen.name}</strong><span>{[chosen.brand, chosen.quantityText, sourceLabel(chosen)].filter(Boolean).join(' · ')}</span>
       <div className="food-macros">por 100 {chosen.basis} · {nutrientText(chosen.nutrients.kcal)} kcal <Macros nutrients={chosen.nutrients} /></div>
@@ -118,14 +125,14 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
             <input type="number" min="1" inputMode="numeric" aria-label={`Cantidad para ${item.name}`}
               value={grams} onChange={event => setAlsoFor(current => ({ ...current, [item.id]: event.target.value }))} />
             {chosen.basis}
-            <small>{nutrientText(scaleNutrients(chosen.nutrients, Number(grams) > 0 ? Number(grams) : 0).kcal)} kcal</small>
+            <small>{nutrientText(scaleNutrients(chosen.nutrients, validQuantity(grams) ? Number(grams) : 0).kcal)} kcal</small>
           </span>}
         </div>
       })}
     </div>}
     {message && <p className="error">{message}</p>}
     <footer className="form-actions"><button className="secondary" onClick={() => setChosen(null)}>Volver</button>
-      <button onClick={confirm}>Añadir{Object.keys(alsoFor).length ? ` a ${Object.keys(alsoFor).length + 1}` : ''}</button></footer>
+      <button disabled={saving} onClick={confirm}>{saving ? 'Guardando…' : `Añadir${Object.keys(alsoFor).length ? ` a ${Object.keys(alsoFor).length + 1}` : ''}`}</button></footer>
   </Modal>
 
   return <Modal title={`Añadir a ${meal}`} onClose={onClose}>

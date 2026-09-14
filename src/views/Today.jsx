@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { scaleNutrients, sumNutrients, macroCalories, meals, nutrientText, remaining, remainingText } from '../lib/nutrition.js'
+import { scaleNutrients, sumNutrients, safeMacroCalories, meals, nutrientText, remaining, remainingText } from '../lib/nutrition.js'
 import AddFood from '../components/AddFood.jsx'
 import Macros from '../components/Macros.jsx'
 import { localDate } from '../lib/nutrition.js'
@@ -11,7 +11,7 @@ const macros = [['kcal', 'Energía', '', 'kcal'], ['carbs', 'Hidratos', 'g', 'ca
 export default function Today({ date, setDate, entries, profile, profiles, foods, onAdd, onEdit, onDelete, onCopy, onFoods }) {
   const [adding, setAdding] = useState(null)
   const totals = useMemo(() => sumNutrients(entries.map(entry => scaleNutrients(entry.food.nutrients, entry.quantity))), [entries])
-  const goal = { kcal: macroCalories(profile), carbs: profile.carbs || 0, protein: profile.protein || 0, fat: profile.fat || 0 }
+  const goal = { kcal: safeMacroCalories(profile), carbs: profile.carbs || 0, protein: profile.protein || 0, fat: profile.fat || 0 }
   const today = localDate()
   const shift = days => { const next = new Date(`${date}T12:00:00`); next.setDate(next.getDate() + days); setDate(localDate(next)) }
 

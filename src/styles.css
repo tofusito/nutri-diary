@@ -91,9 +91,13 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 
 /* ---- library ---- */
 .search-row{display:flex;gap:8px;margin-bottom:14px}
-.search-row input,.form input,.form select,.quantity-row input{width:100%;background:var(--raised);
+.search-row input,.form input,.form select,.quantity-row input{width:100%;min-width:0;background:var(--raised);
   border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--text);outline-color:var(--kcal)}
 .search-row button{flex:none}
+.recipe-add{display:grid;grid-template-columns:minmax(0,1fr) 75px auto;gap:6px;align-items:center}
+.recipe-part{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.recipe-total{display:grid;gap:6px;background:var(--raised);border-radius:14px;padding:14px;font-size:12px}
+.form button:disabled{cursor:wait}
 .food-list{display:grid;gap:8px}
 .food-card{background:var(--surface);box-shadow:inset 0 0 0 1px var(--line-soft);border-radius:16px}
 .food-card button{width:100%;padding:14px;text-align:left;background:transparent;color:var(--text);

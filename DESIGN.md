@@ -16,7 +16,9 @@ Prompt: Create a finished premium iPhone home screen app icon, square full bleed
 
 ## Verification
 
-Production build and diff whitespace check passed. Temporary local MongoDB used for browser checks: four tabs, add-food sheet, widths 320–1280px, reduced motion and no JavaScript errors. Screenshots in ignored `test-results/redesign-diary.png` and `test-results/redesign-sheet.png`. No production data used. Physical iPhone camera, keyboard and installation behaviour have not been retested as part of this visual refresh.
+Production build, API tests and diff whitespace check passed. The stability browser check uses a temporary MongoDB and a mobile browser to exercise empty, negative, zero and decimal macros; profile and food persistence; failed saves with draft retention; idempotent retries; invalid portions; offline queue and synchronization; all four tabs at 320–1280px; and uncaught-error detection. No production data is used. Screenshots are in ignored `test-results/redesign-diary.png` and `test-results/redesign-sheet.png`. Physical iPhone camera, keyboard and installation behaviour have not been retested as part of this visual refresh.
+
+The zero-value crash was caused by an intermediate empty input being converted to null and then passed to the strict calorie calculation during render. The form now treats null as incomplete, keeps zero as a valid value, and reports validation inline. A screen-level error boundary remains as a final visible recovery path if an unexpected catalog or diary record is malformed.
 
 ## References
 

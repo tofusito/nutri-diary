@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, clearPrivateCache, pendingEntries, syncPendingEntries } from './lib/api.js'
 import { localDate } from './lib/nutrition.js'
 import Today from './views/Today.jsx'
@@ -7,6 +7,7 @@ import Progress from './views/Progress.jsx'
 import Profile from './views/Profile.jsx'
 import ChooseProfile from './views/ChooseProfile.jsx'
 import Icon from './components/Icon.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 const PROFILE_KEY = 'nutri-profile'
 
@@ -23,33 +24,44 @@ function Login({ onLogin }) {
 export default function App() {
   const [auth, setAuth] = useState(null)
   const [authProvider, setAuthProvider] = useState('password')
+  const [authError, setAuthError] = useState('')
   const [tab, setTab] = useState('Hoy')
   const [date, setDate] = useState(localDate())
   const [profiles, setProfiles] = useState(null)
-  const [profileId, setProfileId] = useState(() => localStorage.getItem(PROFILE_KEY) || '')
+  const [profileId, setProfileId] = useState(() => { try { return localStorage.getItem(PROFILE_KEY) || '' } catch { return '' } })
   const [foods, setFoods] = useState([])
   const [entries, setEntries] = useState([])
   const [error, setError] = useState('')
   const [undo, setUndo] = useState(null)
   const [pending, setPending] = useState(0)
+  const loadId = useRef(0)
 
   const profile = (profiles || []).find(item => item.id === profileId) || null
   const scope = profile ? `profile=${profile.id}` : ''
   const withScope = path => scope ? `${path}${path.includes('?') ? '&' : '?'}${scope}` : path
 
   const load = async () => {
+    const ticket = ++loadId.current
     try {
       const list = await api('/api/profiles')
+      if (ticket !== loadId.current) return
       setProfiles(list)
       const current = list.find(item => item.id === profileId)
       if (!current) return setError('')
       const [f, e] = await Promise.all([api('/api/foods'), api(`/api/entries?date=${date}&profile=${current.id}`)])
+      if (ticket !== loadId.current) return
       setFoods(f || []); setEntries(e || []); setError('')
-    } catch (err) { setError(err.message) }
+    } catch (err) { if (ticket === loadId.current) setError(err.message) }
   }
 
-  useEffect(() => { api('/api/session').then(session => { setAuthProvider(session.provider || 'password'); setAuth(session.authenticated) }).catch(() => setAuth(false)) }, [])
-  useEffect(() => { if (auth) load() }, [auth, date, profileId])
+  useEffect(() => {
+    let alive = true
+    api('/api/session')
+      .then(session => { if (alive) { setAuthProvider(session.provider || 'password'); setAuthError(''); setAuth(session.authenticated) } })
+      .catch(err => { if (alive) { setAuthError(err.message); setAuth(false) } })
+    return () => { alive = false }
+  }, [])
+  useEffect(() => { if (auth) { setEntries([]); load() } return () => { loadId.current++ } }, [auth, date, profileId])
   useEffect(() => {
     const sync = async () => {
       const result = await syncPendingEntries()
@@ -63,30 +75,31 @@ export default function App() {
 
   const selectProfile = id => {
     setProfileId(id)
-    if (id) localStorage.setItem(PROFILE_KEY, id); else localStorage.removeItem(PROFILE_KEY)
+    try { if (id) localStorage.setItem(PROFILE_KEY, id); else localStorage.removeItem(PROFILE_KEY) } catch { /* Profile remains selected for this visit. */ }
     setEntries([]); setTab('Hoy')
   }
 
   const add = async entry => {
-    setEntries(current => [...current, entry])
+    setEntries(current => current.some(item => item.id === entry.id) ? current : [...current, entry])
     try {
       const saved = await api(withScope('/api/entries'), { method: 'POST', body: JSON.stringify({ ...entry, profileId: profile?.id }) })
       setEntries(current => current.map(item => item.id === entry.id ? saved : item)); setPending(pendingEntries().length)
-    } catch (err) { setEntries(current => current.filter(item => item.id !== entry.id)); setError(err.message) }
+    } catch (err) { setEntries(current => current.filter(item => item.id !== entry.id)); throw err }
   }
   /** One dish cooked for the household: the same food goes into every chosen
    *  diary on the same day, each with its own amount. */
-  const addForProfiles = async ({ food, meal, targets }) => {
+  const addForProfiles = async ({ food, meal, targets, entryIds = {} }) => {
     for (const target of targets) {
-      const entry = { id: crypto.randomUUID(), date, meal, food, quantity: target.quantity }
+      const entry = { id: entryIds[target.id] || crypto.randomUUID(), date, meal, food, quantity: target.quantity }
       if (target.id === profile?.id) { await add(entry); continue }
       try { await api(`/api/entries?profile=${target.id}`, { method: 'POST', body: JSON.stringify({ ...entry, profileId: target.id }) }) }
-      catch (err) { setError(`No se ha podido añadir a ${profiles.find(item => item.id === target.id)?.name || 'el otro perfil'}: ${err.message}`) }
+      catch (err) { throw new Error(`No se ha podido añadir a ${profiles.find(item => item.id === target.id)?.name || 'el otro perfil'}: ${err.message}. Revisa los diarios antes de repetir: las personas anteriores pueden haberse guardado.`) }
     }
   }
   const edit = async entry => {
     const quantity = prompt(`Cantidad en ${entry.food.basis}:`, entry.quantity)
-    if (quantity === null || !Number(quantity)) return
+    if (quantity === null) return
+    if (!Number.isFinite(Number(quantity)) || Number(quantity) <= 0) return setError('Introduce una cantidad mayor que cero.')
     try {
       const updated = await api(`/api/entries/${entry.id}`, { method: 'PATCH', body: JSON.stringify({ quantity: Number(quantity) }) })
       setEntries(current => current.map(item => item.id === entry.id ? updated : item))
@@ -94,9 +107,9 @@ export default function App() {
   }
   const remove = async entry => {
     setEntries(current => current.filter(item => item.id !== entry.id)); setUndo(entry)
-    try { await api(`/api/entries/${entry.id}`, { method: 'DELETE' }) } catch (err) { setEntries(current => [...current, entry]); setError(err.message) }
+    try { await api(`/api/entries/${entry.id}`, { method: 'DELETE' }) } catch (err) { setEntries(current => [...current, entry]); setUndo(null); setError(err.message) }
   }
-  const restore = async () => { if (!undo) return; const entry = undo; setUndo(null); await add({ ...entry, id: crypto.randomUUID() }) }
+  const restore = async () => { if (!undo) return; const entry = undo; setUndo(null); try { await add(entry) } catch (err) { setError(err.message); setUndo(entry) } }
   const copy = async () => {
     const previousDay = new Date(`${date}T12:00:00`); previousDay.setDate(previousDay.getDate() - 1)
     try {
@@ -117,7 +130,10 @@ export default function App() {
     await api(`/api/profiles/${id}`, { method: 'DELETE' })
     setProfiles(current => (current || []).filter(item => item.id !== id)); selectProfile('')
   }
-  const logout = async () => { await api('/api/logout', { method: 'POST' }); clearPrivateCache(); setEntries([]); setFoods([]); selectProfile(''); if (authProvider === 'cloudflare') { window.location.assign('/cdn-cgi/access/logout'); return } setAuth(false) }
+  const logout = async () => {
+    try { await api('/api/logout', { method: 'POST' }); clearPrivateCache(); setEntries([]); setFoods([]); selectProfile(''); if (authProvider === 'cloudflare') { window.location.assign('/cdn-cgi/access/logout'); return } setAuth(false) }
+    catch (err) { setError(err.message) }
+  }
 
   const view = useMemo(() => ({
     Hoy: <Today date={date} setDate={setDate} entries={entries} profile={profile} profiles={profiles || []} foods={foods} onFoods={setFoods} onAdd={addForProfiles} onEdit={edit} onDelete={remove} onCopy={copy} />,
@@ -127,12 +143,13 @@ export default function App() {
   })[tab], [tab, date, entries, profile, profiles, foods, pending, scope, profileId, authProvider])
 
   if (auth === null) return <main className="login"><p className="muted">Cargando tu diario…</p></main>
+  if (!auth && authError) return <main className="login"><img className="brand-icon" src="/noodle-192.png" alt="" /><p className="error" role="alert">{authError}</p><button onClick={() => window.location.reload()}>Reintentar acceso</button></main>
   if (!auth) return <Login onLogin={() => setAuth(true)} />
-  if (profiles === null) return <main className="login"><p className="muted">Cargando perfiles…</p></main>
+  if (profiles === null) return <main className="login">{error ? <><p className="error" role="alert">{error}</p><button onClick={load}>Reintentar</button></> : <p className="muted">Cargando perfiles…</p>}</main>
   if (!profile) return <ChooseProfile profiles={profiles} onSelect={selectProfile} onCreate={createProfile} />
   return <div className="app-shell">
     {error && <div className="toast error">{error}<button onClick={() => setError('')}>×</button></div>}
-    {view}
+    <ErrorBoundary key={tab}>{view}</ErrorBoundary>
     {undo && <div className="undo">Entrada eliminada <button onClick={restore}>Deshacer</button><button onClick={() => setUndo(null)}>×</button></div>}
     <nav aria-label="Navegación principal" style={{ '--active-tab': ['Hoy', 'Alimentos', 'Progreso', 'Perfil'].indexOf(tab) }}>{['Hoy', 'Alimentos', 'Progreso', 'Perfil'].map(item =>
       <button key={item} className={tab === item ? 'active' : ''} onClick={() => { setTab(item); window.scrollTo({ top: 0, behavior: 'instant' }) }} aria-current={tab === item ? 'page' : undefined}>

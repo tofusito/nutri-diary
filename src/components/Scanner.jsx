@@ -13,7 +13,7 @@ export default function Scanner({ onResult, onClose }) {
           if (result && alive) { controls.current?.stop(); onResult(result.getText()) }
         })
       } catch { if (alive) setError(location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'No hemos podido abrir la cámara. Escribe el código a mano.' : 'La cámara necesita HTTPS. Abre la app por su dirección https y vuelve a intentarlo.') }
-    })
+    }).catch(() => { if (alive) setError('No hemos podido cargar el escáner. Escribe el código a mano.') })
     return () => { alive = false; controls.current?.stop() }
   }, [onResult])
   const submit = event => { event.preventDefault(); const code = manual.trim(); if (/^[0-9]{6,14}$/.test(code)) onResult(code) }
