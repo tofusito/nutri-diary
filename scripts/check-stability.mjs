@@ -165,6 +165,20 @@ try {
   assert.ok(await confirmDelete.isEnabled(), 'delete stayed locked with the exact name');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
 
+  // The initial add sheet is intentionally quiet: it shows this profile's
+  // meal-specific frequent foods without opening the keyboard. The plus action
+  // logs the remembered portion and keeps the sheet open for another quick add.
+  await tab('Hoy');
+  await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
+  const searchField = page.getByPlaceholder('Buscar o escribir un código');
+  assert.equal(await searchField.evaluate(element => document.activeElement === element), false, 'frequent-food sheet must not autofocus search');
+  await page.getByRole('heading', { name: 'Tus habituales de desayuno', exact: true }).waitFor();
+  const quick = page.getByRole('button', { name: /Añadir Test stability, 80 g/ });
+  await quick.click();
+  await page.getByRole('status').filter({ hasText: 'Test stability añadido · 80 g' }).waitFor();
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await tab('Perfil');
+
   const zeroMacro = page.getByLabel('Hidratos', { exact: true });
   await zeroMacro.click();
   await zeroMacro.pressSequentially('37');

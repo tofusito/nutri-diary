@@ -27,9 +27,15 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   const [alsoFor, setAlsoFor] = useState({})
   const [saving, setSaving] = useState(false)
   const [recent, setRecent] = useState([])
+  const [quickAdding, setQuickAdding] = useState('')
+  const [quickAdded, setQuickAdded] = useState('')
+  const [notice, setNotice] = useState('')
   const validQuantity = value => Number.isFinite(Number(value)) && Number(value) > 0
   const request = useRef(0)
   const entryIds = useRef({})
+  const noticeTimer = useRef()
+
+  useEffect(() => () => clearTimeout(noticeTimer.current), [])
 
   const local = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -42,7 +48,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   useEffect(() => {
     const text = query.trim()
     const ticket = ++request.current
-    setResult({ mine: [], external: [] }); setLoading(false); setMessage('')
+    setResult({ mine: [], external: [] }); setLoading(false); setMessage(''); setNotice('')
     if (text.length < 2) { setBarcode(''); return }
     const timer = setTimeout(async () => {
       setLoading(true)
@@ -54,8 +60,8 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
     return () => { clearTimeout(timer); request.current++ }
   }, [query])
 
-  // What this profile usually eats at this meal: the common case is repeating
-  // yesterday's breakfast, not searching for it again.
+  // What this profile uses most often for this meal: the common case is
+  // repeating a usual breakfast, not searching for it again.
   useEffect(() => {
     if (!profile?.id) return
     let alive = true
@@ -66,6 +72,28 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   }, [meal, profile?.id])
 
   const repeat = row => { entryIds.current = {}; setChosen(row.food); setQuantity(row.quantity || row.food.servingSize || 100) }
+
+  const quickAdd = async row => {
+    if (quickAdding || !profile?.id || !validQuantity(row.quantity)) return
+    const foodId = row.food.id
+    setQuickAdding(foodId); setMessage(''); setNotice('')
+    try {
+      await onAdd({
+        food: row.food,
+        meal,
+        targets: [{ id: profile.id, quantity: Number(row.quantity) }],
+        entryIds: { [profile.id]: crypto.randomUUID() },
+      })
+      setQuickAdded(foodId)
+      setNotice(`${row.food.name} añadido · ${row.quantity} ${row.food.basis}`)
+      clearTimeout(noticeTimer.current)
+      noticeTimer.current = setTimeout(() => { setQuickAdded(''); setNotice('') }, 1_800)
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setQuickAdding('')
+    }
+  }
 
   const scan = async code => {
     setScanner(false); setQuery(code); setLoading(true); setMessage('')
@@ -157,29 +185,29 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   return <Modal title={`Añadir a ${meal}`} onClose={onClose} tall
     action={<button type="button" className="chip" onClick={createByHand}>+ A mano</button>}>
     <div className="search-row">
-      <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar o escribir un código" inputMode="search" />
+      <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar o escribir un código" inputMode="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck="false" />
       <button className="secondary scan-button" onClick={() => setScanner(true)} aria-label="Escanear código de barras"><Icon name="barcode" /></button>
     </div>
     {barcode && barcode === query.trim() && !loading && <p className="barcode-note">Código <b>{barcode}</b> · {mine.length + external.length
       ? `${mine.length + external.length} producto(s). Un mismo código puede estar reutilizado en varios productos: revísalo antes de elegir.`
       : 'sin resultados. Créalo con «+ A mano» arriba: el código ya va rellenado.'}</p>}
     {loading && <p className="muted">Buscando…</p>}
-    {message && <p className="error">{message}</p>}
+    {message && <p className="error" role="alert">{message}</p>}
+    {notice && <p className="success" role="status">{notice}</p>}
     <div className="results">
-      {!query.trim() && recent.length > 0 && <>
-        <h3>Repetir en {meal.toLowerCase()} <small>{recent.length}</small></h3>
-        {recent.map(row => <button className="result" key={row.food.id + row.date} onClick={() => repeat(row)}>
-          <span className="result-dot star">↺</span>
-          <span className="result-body"><strong>{row.food.name}</strong>
-            <small>{row.quantity} {row.food.basis} · {nutrientText(scaleNutrients(row.food.nutrients, row.quantity).kcal)} kcal</small>
-            <small className="result-macros"><Macros nutrients={scaleNutrients(row.food.nutrients, row.quantity)} /></small>
-          </span>
-        </button>)}
+      {!query.trim() ? <>
+        <h3>{recent.length ? `Tus habituales de ${meal.toLowerCase()}` : 'Tu biblioteca'}</h3>
+        {recent.length ? recent.map(row => <FrequentRow key={row.food.id} row={row}
+          onPick={() => repeat(row)} onQuickAdd={() => quickAdd(row)}
+          adding={quickAdding === row.food.id} added={quickAdded === row.food.id} />)
+          : mine.length ? mine.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} />)
+            : <p className="empty">Nada en tu biblioteca todavía.</p>}
+      </> : <>
+        <h3>Tuyos <small>{mine.length}</small></h3>
+        {mine.length ? mine.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} />) : <p className="empty">Nada en tu biblioteca todavía.</p>}
+        <h3>Open Food Facts <small>{external.length}</small></h3>
+        {external.length ? external.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} external />) : <p className="empty">{query.trim().length < 2 ? 'Escribe para buscar en la base pública.' : loading ? '…' : result.external?.some(item => hasKcal(item)) ? 'Lo público que hay aquí ya está en tu biblioteca.' : result.external?.length ? 'Hay resultados sin kcal declaradas; no se muestran.' : 'Sin resultados públicos.'}</p>}
       </>}
-      <h3>Tuyos <small>{mine.length}</small></h3>
-      {mine.length ? mine.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} />) : <p className="empty">Nada en tu biblioteca todavía.</p>}
-      <h3>Open Food Facts <small>{external.length}</small></h3>
-      {external.length ? external.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} external />) : <p className="empty">{query.trim().length < 2 ? 'Escribe para buscar en la base pública.' : loading ? '…' : result.external?.some(item => hasKcal(item)) ? 'Lo público que hay aquí ya está en tu biblioteca.' : result.external?.length ? 'Hay resultados sin kcal declaradas; no se muestran.' : 'Sin resultados públicos.'}</p>}
     </div>
     {scanner && <Scanner onResult={scan} onClose={() => setScanner(false)} />}
   </Modal>
@@ -187,8 +215,24 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
 
 const sourceLabel = food => food.source === 'openfoodfacts' ? 'Open Food Facts' : ''
 
+function FrequentRow({ row, onPick, onQuickAdd, adding, added }) {
+  const food = row.food
+  const portion = scaleNutrients(food.nutrients, row.quantity)
+  return <div className="result quick-result">
+    <button type="button" className="result-main" onClick={onPick}>
+      {food.image ? <img src={food.image} alt="" loading="lazy" /> : <span className="result-dot star">↺</span>}
+      <span className="result-body"><strong>{food.name}</strong>
+        <small>{row.quantity} {food.basis} · {nutrientText(portion.kcal)} kcal</small>
+        <small className="result-macros"><Macros nutrients={portion} /></small>
+      </span>
+    </button>
+    <button type="button" className={`quick-add ${added ? 'added' : ''}`} onClick={onQuickAdd} disabled={adding}
+      aria-label={`${added ? 'Añadido' : 'Añadir'} ${food.name}, ${row.quantity} ${food.basis}`}>{adding ? '…' : added ? '✓' : '+'}</button>
+  </div>
+}
+
 function Row({ food, onPick, external }) {
-  return <button className="result" onClick={onPick}>
+  return <button type="button" className="result" onClick={onPick}>
     {food.image ? <img src={food.image} alt="" loading="lazy" /> : <span className={`result-dot ${food.favorite ? 'star' : ''}`}>{external ? '⌾' : food.favorite ? '★' : '◍'}</span>}
     <span className="result-body"><strong>{food.name}</strong>
       <small>{[food.brand, food.quantityText, food.barcode].filter(Boolean).join(' · ') || 'Sin marca'}</small>

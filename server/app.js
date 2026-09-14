@@ -546,27 +546,30 @@ export function createApp(databaseOrClient, options = {}) {
     res.json({ ok: true });
   });
 
-  /** What this profile logged for this meal lately, newest first and one row per
-   *  food, so the usual breakfast is one tap away instead of a fresh search. */
+  /** What this profile uses most often for this meal, one row per food. The
+   *  latest quantity is kept for the quick-add action; the usage count is an
+   *  ordering detail and is not presented by the client. */
   app.get('/api/entries/recent', async (req, res) => {
     const meal = req.query.meal;
     if (meal !== undefined) assert(MEALS.has(meal), 'Comida inválida.');
     const limit = req.query.limit === undefined ? 8 : Number(req.query.limit);
     assert(Number.isInteger(limit) && limit > 0 && limit <= 25, 'Límite inválido.');
     const profileId = await resolveProfileId(req);
-    const rows = await entries
-      .find({ profileId, ...(meal ? { meal } : {}) }, { projection: { _id: 0, food: 1, quantity: 1, date: 1, createdAt: 1 } })
-      .sort({ date: -1, createdAt: -1 })
-      .limit(200)
-      .toArray();
-    const seen = new Map();
-    for (const row of rows) {
-      const key = row.food?.id || `${row.food?.name}|${row.food?.brand || ''}`;
-      if (!row.food || seen.has(key)) continue;
-      seen.set(key, { food: row.food, quantity: row.quantity, date: row.date });
-      if (seen.size >= limit) break;
-    }
-    res.json([...seen.values()]);
+    const rows = await entries.aggregate([
+      { $match: { profileId, ...(meal ? { meal } : {}) } },
+      { $sort: { date: -1, createdAt: -1, id: -1 } },
+      { $group: {
+        _id: { $ifNull: ['$food.id', { $concat: [{ $ifNull: ['$food.name', ''] }, '|', { $ifNull: ['$food.brand', ''] }] }] },
+        food: { $first: '$food' },
+        quantity: { $first: '$quantity' },
+        date: { $first: '$date' },
+        usageCount: { $sum: 1 },
+      } },
+      { $sort: { usageCount: -1, date: -1, _id: 1 } },
+      { $limit: limit },
+      { $project: { _id: 0, food: 1, quantity: 1, date: 1, usageCount: 1 } },
+    ]).toArray();
+    res.json(rows);
   });
 
   app.get('/api/entries', async (req, res) => {
@@ -665,6 +668,7 @@ export async function ensureIndexes(client) {
     tracking.collection('profiles').createIndex({ createdAt: 1 }),
     tracking.collection('entries').createIndex({ id: 1 }, { unique: true }),
     tracking.collection('entries').createIndex({ profileId: 1, date: 1 }),
+    tracking.collection('entries').createIndex({ profileId: 1, meal: 1, date: -1 }),
     tracking.collection('goals').createIndex({ profileId: 1, effectiveDate: 1 }, { unique: true }),
   ]);
 }

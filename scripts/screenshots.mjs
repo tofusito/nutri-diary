@@ -73,7 +73,7 @@ await settle();
 await page.screenshot({ path: new URL('today.png', out).pathname });
 
 await page.getByRole('button', { name: 'Añadir a Cena', exact: true }).click();
-await page.locator('.result').filter({ hasText: 'Salmón' }).first().click();
+await page.locator('.result-main').filter({ hasText: 'Salmón' }).first().click();
 await page.locator('.also-for input[type=checkbox]').first().check();
 await settle();
 await page.screenshot({ path: new URL('add.png', out).pathname });

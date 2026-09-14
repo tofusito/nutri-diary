@@ -155,17 +155,25 @@ test('Cloudflare Access assertions are verified when the origin is configured fo
   }
 });
 
-test('recent foods per meal list each food once, newest first',async()=>{
+test('frequent foods are ranked per profile and meal with the latest portion',async()=>{
   const [profile]=(await request('/api/profiles')).body;
+  const other=(await request('/api/profiles','POST',{name:'Other profile',carbs:100,protein:100,fat:50})).body;
   const f=(await request('/api/foods','POST',{...food(),name:'Recent oats'})).body;
   const g=(await request('/api/foods','POST',{...food(),name:'Recent toast'})).body;
+  const h=(await request('/api/foods','POST',{...food(),name:'Recent dinner'})).body;
   await request('/api/entries','POST',{id:randomUUID(),date:'2026-05-01',meal:'Desayuno',food:f,quantity:40});
   await request('/api/entries','POST',{id:randomUUID(),date:'2026-05-02',meal:'Desayuno',food:f,quantity:60});
-  await request('/api/entries','POST',{id:randomUUID(),date:'2026-05-02',meal:'Cena',food:g,quantity:90});
+  await request('/api/entries','POST',{id:randomUUID(),date:'2026-05-03',meal:'Desayuno',food:g,quantity:80});
+  await request('/api/entries','POST',{id:randomUUID(),date:'2026-05-02',meal:'Cena',food:h,quantity:90});
+  await request(`/api/entries?profile=${other.id}`,'POST',{id:randomUUID(),date:'2026-05-04',meal:'Desayuno',food:g,quantity:100});
+  await request(`/api/entries?profile=${other.id}`,'POST',{id:randomUUID(),date:'2026-05-05',meal:'Desayuno',food:g,quantity:110});
   const breakfast=(await request(`/api/entries/recent?meal=Desayuno&profile=${profile.id}`)).body;
-  assert.equal(breakfast.filter(row=>row.food.name==='Recent oats').length,1,'un alimento aparece una sola vez');
+  assert.deepEqual(breakfast.map(row=>row.food.name),['Recent oats','Recent toast'],'ordena por frecuencia dentro del perfil');
+  assert.equal(breakfast.find(row=>row.food.name==='Recent oats').usageCount,2,'conserva el número de usos para ordenar');
   assert.equal(breakfast.find(row=>row.food.name==='Recent oats').quantity,60,'conserva la cantidad más reciente');
-  assert.ok(!breakfast.some(row=>row.food.name==='Recent toast'),'no mezcla otras comidas');
+  assert.ok(!breakfast.some(row=>row.food.name==='Recent dinner'),'no mezcla otras comidas');
+  const otherBreakfast=(await request(`/api/entries/recent?meal=Desayuno&profile=${other.id}`)).body;
+  assert.deepEqual(otherBreakfast.map(row=>row.food.name),['Recent toast'],'no mezcla personas');
   assert.equal((await request('/api/entries/recent?meal=Merienda')).body.length,0);
   assert.equal((await request('/api/entries/recent?meal=Brunch')).status,400);
   assert.equal((await request('/api/entries/recent?limit=0')).status,400);
