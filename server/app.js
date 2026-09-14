@@ -11,9 +11,10 @@ import {
 const MEALS = new Set(['Desayuno', 'Comida', 'Merienda', 'Cena', 'Snacks']);
 const MEAL_ORDER = ['Desayuno', 'Comida', 'Merienda', 'Cena', 'Snacks'];
 const ACTIVITIES = new Set([1.2, 1.375, 1.55, 1.725, 1.9]);
-// OFF permits 15 product or 10 search reads per minute. A shared 6.1s queue
-// stays below both limits, including mixed request traffic.
-const OFF_MIN_INTERVAL_MS = 6_100;
+// OFF documents 10 searches and 100 product reads per minute. Each kind gets
+// its own queue so scanning a barcode is not held back by the search budget.
+const OFF_SEARCH_INTERVAL_MS = 6_100;
+const OFF_PRODUCT_INTERVAL_MS = 620;
 const OFF_CACHE_MS = 30 * 24 * 60 * 60 * 1_000;
 const OFF_MISS_CACHE_MS = 24 * 60 * 60 * 1_000;
 const SESSION_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -186,8 +187,10 @@ export function createApp(databaseOrClient, options = {}) {
   const sessionSecret = env.SESSION_SECRET || crypto.randomBytes(32).toString('base64url');
   const configuredOrigin = env.APP_ORIGIN?.replace(/\/$/, '');
   const offUserAgent = env.OFF_USER_AGENT || 'nutri-diary/0.1 (personal diary)';
-  let lastOffRequest = 0;
-  let offQueue = Promise.resolve();
+  const offQueues = {
+    search: { last: 0, chain: Promise.resolve(), interval: OFF_SEARCH_INTERVAL_MS },
+    product: { last: 0, chain: Promise.resolve(), interval: OFF_PRODUCT_INTERVAL_MS },
+  };
   const loginAttempts = new Map();
   const app = express();
   app.disable('x-powered-by');
@@ -340,34 +343,61 @@ export function createApp(databaseOrClient, options = {}) {
     res.json(food);
   });
 
-  async function offFetch(url) {
+  async function offFetch(url, kind = 'search') {
+    const queue = offQueues[kind];
     const task = async () => {
-      const wait = OFF_MIN_INTERVAL_MS - (Date.now() - lastOffRequest);
+      const wait = queue.interval - (Date.now() - queue.last);
       if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-      lastOffRequest = Date.now();
+      queue.last = Date.now();
       const response = await fetch(url, { headers: { 'User-Agent': offUserAgent }, signal: AbortSignal.timeout(10_000) });
       // A 404 is a real answer: the product is simply not catalogued there.
       if (response.status === 404) return null;
       if (!response.ok) throw new ApiError(502, 'Open Food Facts no está disponible.');
       return response.json();
     };
-    const pending = offQueue.then(task, task);
-    offQueue = pending.catch(() => {});
+    const pending = queue.chain.then(task, task);
+    queue.chain = pending.catch(() => {});
     return pending;
   }
+  /** search.openfoodfacts.org spells a few fields differently from the product
+   *  endpoint, so its hits are reshaped before the shared mapper sees them. */
+  const fromSearchHit = (hit) => fromOff({
+    ...hit,
+    brands: Array.isArray(hit.brands) ? hit.brands.join(', ') : hit.brands,
+    quantity: Array.isArray(hit.quantity) ? hit.quantity[0] : hit.quantity,
+  });
   /** Open Food Facts products for one barcode. Barcodes are reused between
    *  different products, so this returns every match rather than the first. */
   async function offByBarcode(barcode) {
     const cached = await lookupCache.findOne({ barcode, expiresAt: { $gt: new Date() } });
     if (Array.isArray(cached?.foods)) return cached.foods;
-    const search = new URL('https://world.openfoodfacts.org/api/v2/search');
-    search.search = new URLSearchParams({ code: barcode, page_size: '20' });
-    let products = (await offFetch(search))?.products || [];
-    if (!products.length) {
-      const payload = await offFetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`);
-      products = payload?.status === 1 && payload.product ? [payload.product] : [];
+    // Two independent sources: the search index lists every product sharing the
+    // code, the product endpoint is canonical and knows codes indexed later.
+    // Either may be rate limited on its own, so one failure must not hide the
+    // other, and only a total failure counts as an outage.
+    const attempts = await Promise.allSettled([
+      (async () => {
+        const url = new URL('https://search.openfoodfacts.org/search');
+        url.search = new URLSearchParams({ q: `code:${barcode}`, page_size: '20' });
+        return ((await offFetch(url, 'search'))?.hits || []).map(fromSearchHit);
+      })(),
+      (async () => {
+        const payload = await offFetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`, 'product');
+        return payload?.status === 1 && payload.product ? [fromOff(payload.product)] : [];
+      })(),
+    ]);
+    if (attempts.every((attempt) => attempt.status === 'rejected')) throw attempts[0].reason;
+    const seen = new Set();
+    const result = [];
+    for (const attempt of attempts) {
+      if (attempt.status !== 'fulfilled') continue;
+      for (const food of attempt.value) {
+        const key = `${food.name}|${food.brand || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push({ ...food, barcode: food.barcode || barcode });
+      }
     }
-    const result = products.map((product) => ({ ...fromOff(product), barcode: product.code || barcode }));
     // An unknown barcode may be added upstream any day, so remember it briefly only.
     const ttl = result.length ? OFF_CACHE_MS : OFF_MISS_CACHE_MS;
     await lookupCache.updateOne({ barcode }, { $set: { barcode, foods: result, expiresAt: new Date(Date.now() + ttl) } }, { upsert: true });
@@ -382,12 +412,8 @@ export function createApp(databaseOrClient, options = {}) {
     if (cached?.foods) return cached.foods;
     const url = new URL('https://search.openfoodfacts.org/search');
     url.search = new URLSearchParams({ q: query, page_size: '20' });
-    const payload = await offFetch(url);
-    const result = (payload?.hits || []).map((hit) => fromOff({
-      ...hit,
-      brands: Array.isArray(hit.brands) ? hit.brands.join(', ') : hit.brands,
-      quantity: Array.isArray(hit.quantity) ? hit.quantity[0] : hit.quantity,
-    }));
+    const payload = await offFetch(url, 'search');
+    const result = (payload?.hits || []).map(fromSearchHit);
     await searchCache.updateOne({ cacheKey }, { $set: { cacheKey, foods: result, expiresAt: new Date(Date.now() + OFF_CACHE_MS) } }, { upsert: true });
     return result;
   }
