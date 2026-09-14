@@ -124,15 +124,29 @@ try {
     const box = await sheet.boundingBox();
     assert.ok(box.y >= -1, `sheet starts above the viewport at ${height}px`);
     assert.ok(box.y + box.height <= height + 1, `sheet overflows the viewport at ${height}px`);
-    for (const name of ['Buscar o escribir un código', 'Crear alimento a mano']) {
-      const control = name.startsWith('Buscar') ? page.getByPlaceholder(name) : page.getByRole('button', { name });
+    for (const control of [page.getByPlaceholder('Buscar o escribir un código'), page.getByRole('button', { name: '+ A mano', exact: true })]) {
       const rect = await control.boundingBox();
-      assert.ok(rect && rect.y >= 0 && rect.y + rect.height <= height + 1, `"${name}" is off screen at ${height}px`);
+      assert.ok(rect && rect.y >= 0 && rect.y + rect.height <= height + 1, `a sheet control is off screen at ${height}px`);
     }
+    // The sheet must reach the bottom of the visible area: any gap there is
+    // where the page behind showed through under the keyboard.
+    assert.ok(Math.abs(box.y + box.height - height) <= 1, `sheet leaves a ${Math.round(height - box.y - box.height)}px gap at ${height}px`);
     assert.ok(await page.locator('.results').evaluate(el => el.scrollHeight >= el.clientHeight), 'results should scroll inside the sheet');
     await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   }
+  // A real iOS keyboard cannot be opened here, so the inset it publishes is set
+  // directly: the sheet has to sit on top of it, not behind it.
   await page.setViewportSize({ width: 390, height: 844 });
+  await tab('Hoy');
+  await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
+  const sheet = page.getByRole('dialog');
+  await sheet.evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
+  await page.evaluate(() => document.documentElement.style.setProperty('--keyboard-inset', '336px'));
+  const withKeyboard = await sheet.boundingBox();
+  assert.ok(Math.abs(withKeyboard.y + withKeyboard.height - (844 - 336)) <= 1, 'the sheet ignores the keyboard inset');
+  assert.ok(withKeyboard.height > 200, 'the sheet collapsed above the keyboard');
+  await page.evaluate(() => document.documentElement.style.removeProperty('--keyboard-inset'));
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
 
   // Scanning into the barcode field: the camera is denied here, so this drives
   // the manual fallback and checks the code lands back on the form.
@@ -169,5 +183,5 @@ try {
   await zeroMacro.pressSequentially('37');
   assert.equal(await zeroMacro.inputValue(), '37', 'zero macro should be replaced on first typing');
   assert.deepEqual(errors, []);
-  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; the search sheet fitting a keyboard-sized viewport; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
+  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; the search sheet filling a keyboard-sized viewport with no gap under it; the sheet riding on top of a keyboard inset; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }

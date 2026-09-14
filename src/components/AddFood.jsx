@@ -153,14 +153,16 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
       <button disabled={saving} onClick={confirm}>{saving ? 'Guardando…' : `Añadir${Object.keys(alsoFor).length ? ` a ${Object.keys(alsoFor).length + 1}` : ''}`}</button></footer>
   </Modal>
 
-  return <Modal title={`Añadir a ${meal}`} onClose={onClose} tall>
+  const createByHand = () => setCreating({ ...emptyFood(), name: query.trim().length > 2 && !barcode ? query.trim() : '', barcode })
+  return <Modal title={`Añadir a ${meal}`} onClose={onClose} tall
+    action={<button type="button" className="chip" onClick={createByHand}>+ A mano</button>}>
     <div className="search-row">
       <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar o escribir un código" inputMode="search" />
       <button className="secondary scan-button" onClick={() => setScanner(true)} aria-label="Escanear código de barras"><Icon name="barcode" /></button>
     </div>
     {barcode && barcode === query.trim() && !loading && <p className="barcode-note">Código <b>{barcode}</b> · {mine.length + external.length
       ? `${mine.length + external.length} producto(s). Un mismo código puede estar reutilizado en varios productos: revísalo antes de elegir.`
-      : 'sin resultados. Créalo a mano abajo: el código ya va rellenado.'}</p>}
+      : 'sin resultados. Créalo con «+ A mano» arriba: el código ya va rellenado.'}</p>}
     {loading && <p className="muted">Buscando…</p>}
     {message && <p className="error">{message}</p>}
     <div className="results">
@@ -179,9 +181,6 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
       <h3>Open Food Facts <small>{external.length}</small></h3>
       {external.length ? external.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} external />) : <p className="empty">{query.trim().length < 2 ? 'Escribe para buscar en la base pública.' : loading ? '…' : result.external?.some(item => hasKcal(item)) ? 'Lo público que hay aquí ya está en tu biblioteca.' : result.external?.length ? 'Hay resultados sin kcal declaradas; no se muestran.' : 'Sin resultados públicos.'}</p>}
     </div>
-    <button className={`full ${mine.length || external.length ? 'secondary' : ''}`} onClick={() => setCreating({ ...emptyFood(), name: query.trim().length > 2 && !barcode ? query.trim() : '', barcode })}>
-      {barcode && !mine.length && !external.length ? `Crear el ${barcode} a mano` : 'Crear alimento a mano'}
-    </button>
     {scanner && <Scanner onResult={scan} onClose={() => setScanner(false)} />}
   </Modal>
 }

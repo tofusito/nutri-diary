@@ -109,7 +109,7 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 .food-macros{grid-column:1/-1;border-top:1px solid var(--line-soft);padding-top:9px;font-size:11px;color:var(--muted)}
 
 /* ---- modal / add sheet ---- */
-.modal-backdrop{position:fixed;left:0;right:0;top:var(--vv-top,0px);height:var(--vv-height,100dvh);background:#000c;backdrop-filter:blur(3px);z-index:10;
+.modal-backdrop{position:fixed;left:0;right:0;top:0;bottom:var(--keyboard-inset,0px);background:#000c;backdrop-filter:blur(3px);z-index:10;
   display:flex;align-items:end;justify-content:center}
 .modal{max-width:620px;width:100%;max-height:100%;overflow:auto;display:flex;flex-direction:column;background:var(--surface);
   box-shadow:inset 0 0 0 1px var(--line);border-radius:26px 26px 0 0;padding:18px 18px 26px}
@@ -329,3 +329,6 @@ button.danger{background:#3a221f;color:#ffb3a7;box-shadow:inset 0 0 0 1px #5a312
 .scan-field input{flex:1;min-width:0}
 .scan-button{flex:none;display:flex;align-items:center;gap:7px;padding:0 15px;font-size:12px}
 .scan-button svg{width:21px;height:21px;display:block}
+
+.modal-actions{display:flex;align-items:center;gap:10px}
+.modal-actions .chip{padding:7px 13px}
