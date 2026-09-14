@@ -1,6 +1,6 @@
 # Visual refresh — 2026-09-14
 
-Local implementation based on main at de4e8f2. Not deployed.
+Implementation on `refactor/visual-refresh`, deployed from the homelab after pull and image rebuild.
 
 ## Direction
 
