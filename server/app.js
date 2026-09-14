@@ -18,6 +18,7 @@ const OFF_PRODUCT_INTERVAL_MS = 620;
 const OFF_CACHE_MS = 30 * 24 * 60 * 60 * 1_000;
 const OFF_MISS_CACHE_MS = 24 * 60 * 60 * 1_000;
 const SESSION_MS = 7 * 24 * 60 * 60 * 1_000;
+const ACCESS_CERTS_TTL_MS = 60 * 60 * 1_000;
 
 const defaultProfile = () => ({ carbs: 0, protein: 0, fat: 0, kcal: 0 });
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -186,6 +187,15 @@ export function createApp(databaseOrClient, options = {}) {
   // Explicit deployment contract: only the authenticated Cloudflare tunnel can
   // reach the origin. Do not enable this mode on a published origin port.
   const gatewayAuth = env.AUTH_MODE === 'cloudflare';
+  const accessTeamDomain = env.CF_ACCESS_TEAM_DOMAIN?.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const accessAudience = env.CF_ACCESS_AUD;
+  // Verifying the Access assertion turns a silent exposure into a 403 if the
+  // edge policy is ever removed. Without both settings the origin keeps
+  // trusting the tunnel, so an incomplete configuration cannot lock anybody out.
+  const accessEnforced = Boolean(gatewayAuth && accessTeamDomain && accessAudience);
+  const accessCertsUrl = env.CF_ACCESS_CERTS_URL || (accessTeamDomain ? `https://${accessTeamDomain}/cdn-cgi/access/certs` : undefined);
+  if (gatewayAuth && !accessEnforced) console.warn('AUTH_MODE=cloudflare sin CF_ACCESS_TEAM_DOMAIN y CF_ACCESS_AUD: el origen confía en cualquier petición que le llegue.');
+  let accessKeys = { fetchedAt: 0, keys: new Map() };
   const bypass = !production && env.DEV_AUTH_BYPASS === '1';
   const sessionSecret = env.SESSION_SECRET || crypto.randomBytes(32).toString('base64url');
   const configuredOrigin = env.APP_ORIGIN?.replace(/\/$/, '');
@@ -207,7 +217,44 @@ export function createApp(databaseOrClient, options = {}) {
     const token = `${id}.${sign(id, sessionSecret)}`;
     res.cookie('nutri_session', token, { httpOnly: true, sameSite: 'strict', secure: production, path: '/', maxAge: SESSION_MS });
   };
-  const authenticated = (req) => {
+  async function accessPublicKey(kid) {
+    if (Date.now() - accessKeys.fetchedAt < ACCESS_CERTS_TTL_MS && accessKeys.keys.has(kid)) return accessKeys.keys.get(kid);
+    const response = await fetch(accessCertsUrl, { signal: AbortSignal.timeout(5_000) });
+    if (!response.ok) throw new ApiError(503, 'No se ha podido comprobar el acceso.');
+    const payload = await response.json();
+    const keys = new Map();
+    for (const jwk of payload.keys || []) {
+      try { keys.set(jwk.kid, crypto.createPublicKey({ key: jwk, format: 'jwk' })); } catch { /* Ignore keys this runtime cannot read. */ }
+    }
+    accessKeys = { fetchedAt: Date.now(), keys };
+    return keys.get(kid);
+  }
+  /** Validates the assertion Cloudflare Access attaches to every allowed request. */
+  async function accessIdentity(req) {
+    const token = req.get('cf-access-jwt-assertion') || parseCookies(req.headers.cookie).CF_Authorization;
+    if (typeof token !== 'string') return null;
+    const [headerPart, payloadPart, signaturePart] = token.split('.');
+    if (!headerPart || !payloadPart || !signaturePart) return null;
+    let header;
+    let payload;
+    try {
+      header = JSON.parse(Buffer.from(headerPart, 'base64url').toString('utf8'));
+      payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));
+    } catch { return null; }
+    if (header.alg !== 'RS256' || typeof header.kid !== 'string') return null;
+    const key = await accessPublicKey(header.kid);
+    if (!key) return null;
+    if (!crypto.verify('RSA-SHA256', Buffer.from(`${headerPart}.${payloadPart}`), key, Buffer.from(signaturePart, 'base64url'))) return null;
+    const now = Math.floor(Date.now() / 1_000);
+    if (typeof payload.exp !== 'number' || payload.exp <= now) return null;
+    if (typeof payload.nbf === 'number' && payload.nbf > now + 60) return null;
+    if (payload.iss !== `https://${accessTeamDomain}`) return null;
+    const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    if (!audience.includes(accessAudience)) return null;
+    return payload;
+  }
+  const authenticated = async (req) => {
+    if (accessEnforced) return Boolean(await accessIdentity(req));
     if (gatewayAuth) return true;
     if (bypass) return true;
     if (!password) return false;
@@ -225,9 +272,12 @@ export function createApp(databaseOrClient, options = {}) {
     return next();
   };
   const requireAuth = (req, res, next) => {
-    if (authenticated(req)) return next();
-    if (!password && !bypass) return next(new ApiError(503, 'La autenticación no está configurada.'));
-    return next(new ApiError(401, 'Autenticación requerida.'));
+    authenticated(req).then((ok) => {
+      if (ok) return next();
+      if (accessEnforced) return next(new ApiError(403, 'Acceso no autorizado.'));
+      if (!password && !bypass) return next(new ApiError(503, 'La autenticación no está configurada.'));
+      return next(new ApiError(401, 'Autenticación requerida.'));
+    }, next);
   };
   const allowLoginAttempt = (req) => {
     const now = Date.now();
@@ -249,7 +299,9 @@ export function createApp(databaseOrClient, options = {}) {
     issueSession(res);
     return res.json({ authenticated: true });
   });
-  app.get('/api/session', (req, res) => res.json({ authenticated: authenticated(req), provider: gatewayAuth ? 'cloudflare' : 'password' }));
+  app.get('/api/session', (req, res, next) => {
+    authenticated(req).then((ok) => res.json({ authenticated: ok, provider: gatewayAuth ? 'cloudflare' : 'password' }), next);
+  });
   app.post('/api/logout', requireSameOrigin, (req, res) => {
     const id = parseCookies(req.headers.cookie).nutri_session?.split('.')[0];
     if (id) sessions.delete(id);
@@ -259,7 +311,13 @@ export function createApp(databaseOrClient, options = {}) {
   app.use('/api', requireSameOrigin, requireAuth);
 
   /** Profiles. One diary per person; the food catalog is shared between them. */
-  async function ensureDefaultProfile() {
+  let bootstrapping = null;
+  function ensureDefaultProfile() {
+    // Concurrent first requests would otherwise each create their own profile.
+    if (!bootstrapping) bootstrapping = createDefaultProfile().finally(() => { bootstrapping = null; });
+    return bootstrapping;
+  }
+  async function createDefaultProfile() {
     const existing = await profiles.find({}, { projection: { _id: 0 } }).sort({ createdAt: 1 }).limit(1).toArray();
     if (existing[0]) return existing[0];
     const legacy = publicDocument(await profileCollection.findOne({ key: 'primary' }))?.value;
@@ -339,9 +397,18 @@ export function createApp(databaseOrClient, options = {}) {
     const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const filter = query ? { $or: [{ name: { $regex: escapedQuery, $options: 'i' } }, { brand: { $regex: escapedQuery, $options: 'i' } }, { barcode: { $regex: escapedQuery, $options: 'i' } }] } : {};
-    const result = await foods.find(filter, { projection: { _id: 0 } }).sort({ favorite: -1, name: 1 }).limit(100).toArray();
+    const limit = req.query.limit === undefined ? 100 : Number(req.query.limit);
+    assert(Number.isInteger(limit) && limit > 0 && limit <= 500, 'Límite inválido.');
+    const [result, total] = await Promise.all([
+      foods.find(filter, { projection: { _id: 0 } }).sort({ favorite: -1, name: 1 }).limit(limit).toArray(),
+      foods.countDocuments(filter),
+    ]);
+    // The catalogue outgrows a single page eventually; the client has to know
+    // when what it holds is a page rather than the whole library.
+    res.set('X-Total-Count', String(total));
     res.json(result);
   });
+  app.get('/api/foods/count', async (req, res) => res.json({ total: await foods.countDocuments() }));
   app.post('/api/foods', async (req, res) => {
     const requestedId = req.body?.id;
     const food = normalizeFood(req.body, { requireId: requestedId !== undefined });
@@ -489,6 +556,29 @@ export function createApp(databaseOrClient, options = {}) {
     assert(isUuid(req.params.id), 'El id del alimento debe ser un UUID.');
     await foods.deleteOne({ id: req.params.id });
     res.json({ ok: true });
+  });
+
+  /** What this profile logged for this meal lately, newest first and one row per
+   *  food, so the usual breakfast is one tap away instead of a fresh search. */
+  app.get('/api/entries/recent', async (req, res) => {
+    const meal = req.query.meal;
+    if (meal !== undefined) assert(MEALS.has(meal), 'Comida inválida.');
+    const limit = req.query.limit === undefined ? 8 : Number(req.query.limit);
+    assert(Number.isInteger(limit) && limit > 0 && limit <= 25, 'Límite inválido.');
+    const profileId = await resolveProfileId(req);
+    const rows = await entries
+      .find({ profileId, ...(meal ? { meal } : {}) }, { projection: { _id: 0, food: 1, quantity: 1, date: 1, createdAt: 1 } })
+      .sort({ date: -1, createdAt: -1 })
+      .limit(200)
+      .toArray();
+    const seen = new Map();
+    for (const row of rows) {
+      const key = row.food?.id || `${row.food?.name}|${row.food?.brand || ''}`;
+      if (!row.food || seen.has(key)) continue;
+      seen.set(key, { food: row.food, quantity: row.quantity, date: row.date });
+      if (seen.size >= limit) break;
+    }
+    res.json([...seen.values()]);
   });
 
   app.get('/api/entries', async (req, res) => {

@@ -14,6 +14,10 @@ A small, multi-profile nutrition diary in Spanish. Mobile-first React PWA, Expre
 - When a barcode is nowhere to be found, the create form opens with that code already filled in and asks for the bare minimum: name, barcode and kcal, carbohydrates, protein and fat per 100 g/ml. Brand, usual portion, favorite, label OCR and the private QR sit behind "Más opciones". Blank fields are stored as unknown, not as zero.
 - Picking an external result copies it into the personal catalog, so the next search finds it locally. The catalog is one shared library: a food created from any profile is immediately searchable from the others.
 - Quantities are entered in grams or millilitres and every value is scaled from the per-100 figures. The add sheet shows the scaled kcal and macros for the amount typed before confirming, and each meal on the home screen lists what was eaten, with its own kcal and macro line.
+- Tapping a logged portion opens the same controls used to add it: amount, meal and day are all editable, and the entry can be deleted from there. Meals are the easiest thing to mis-tap, so moving one takes two taps rather than deleting and starting again.
+- The add sheet opens on what this profile usually eats at that meal, so repeating yesterday's breakfast is one tap.
+- Copying the previous day asks first, lists what it will add and leaves out anything already registered, so pressing it twice cannot duplicate the day.
+- A food can be removed from the shared library; diary entries keep the snapshot they were logged with.
 - Progress only charts days that actually have entries; empty days are dropped rather than drawn as zeroes, and a range with no records says so.
 - Optional Mifflin–St Jeor calculator estimates resting energy; an activity multiplier estimates maintenance separately. It does not change targets automatically. This equation dates from 1990; it is not a newly released or adaptive algorithm.
 - Food labels retain their declared kcal. Fiber, alcohol and rounding mean food energy need not equal a naive 4/4/9 calculation. The 4/4/9 rule is authoritative for the user's macro goal only.
@@ -31,6 +35,8 @@ Node 22.23+ and a MongoDB instance are required. Install dependencies with `npm 
 This deployment is published at `https://nutri.tofusito.org`; set that as `APP_ORIGIN`. Same-origin checks on writes and the secure session cookie both depend on it being the real public origin.
 
 For a host-installed cloudflared, route `nutri.tofusito.org` to `http://127.0.0.1:3100`. To run cloudflared inside compose instead, put the tunnel token in `TUNNEL_TOKEN` and start with `docker compose --profile tunnel up -d --build`; that service targets `http://app:3100`, because localhost inside the cloudflared container would address the wrong container. Creating the tunnel and its DNS record in the Cloudflare dashboard is a manual step this repository does not perform.
+
+Set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` so the origin verifies the assertion Access attaches to every allowed request. Without them the origin trusts whatever reaches it, which is only as strong as the edge policy staying in place; with them, a removed or misconfigured Access application turns into a 403 instead of an open diary. The audience tag is the `kid` parameter of the Access login redirect for the hostname.
 
 Cloudflare Tunnel provides transport, not by itself user authentication. The app has one password-protected personal session; Cloudflare Access may additionally restrict access. If enabling Access, enable token validation at the tunnel/origin as documented by Cloudflare. Keep APIs uncached at the edge; never add a Cache Everything rule to this hostname.
 

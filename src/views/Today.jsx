@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { scaleNutrients, sumNutrients, safeMacroCalories, meals, nutrientText, remaining, remainingText } from '../lib/nutrition.js'
 import AddFood from '../components/AddFood.jsx'
 import Macros from '../components/Macros.jsx'
+import EditEntry from '../components/EditEntry.jsx'
 import { localDate } from '../lib/nutrition.js'
 
 const longDate = date => new Date(`${date}T12:00:00`).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })
@@ -10,6 +11,7 @@ const macros = [['kcal', 'Energía', '', 'kcal'], ['carbs', 'Hidratos', 'g', 'ca
 /** Home screen: one day, five meals, and how far the day is from the goal. */
 export default function Today({ date, setDate, entries, profile, profiles, foods, onAdd, onEdit, onDelete, onCopy, onFoods }) {
   const [adding, setAdding] = useState(null)
+  const [editing, setEditing] = useState(null)
   const totals = useMemo(() => sumNutrients(entries.map(entry => scaleNutrients(entry.food.nutrients, entry.quantity))), [entries])
   const goal = { kcal: safeMacroCalories(profile), carbs: profile.carbs || 0, protein: profile.protein || 0, fat: profile.fat || 0 }
   const today = localDate()
@@ -46,7 +48,7 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
         {rows.map(entry => {
           const portion = scaleNutrients(entry.food.nutrients, entry.quantity)
           return <article className={`entry ${entry.pending ? 'pending' : ''}`} key={entry.id}>
-            <button className="entry-main" onClick={() => onEdit(entry)}>
+            <button className="entry-main" onClick={() => setEditing(entry)}>
               <strong>{entry.food.name}</strong>
               <span><b>{entry.quantity} {entry.food.basis}</b> · {nutrientText(portion.kcal)} kcal{entry.pending ? ' · pendiente' : ''}</span>
               <span className="entry-macros"><Macros nutrients={portion} /></span>
@@ -59,6 +61,11 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
     })}</div>
 
     <button className="link-button center" onClick={onCopy}>Copiar el día anterior</button>
+
+    {editing && <EditEntry entry={editing}
+      onSave={changes => onEdit(editing, changes)}
+      onDelete={() => onDelete(editing)}
+      onClose={() => setEditing(null)} />}
 
     {adding && <AddFood meal={adding} foods={foods} profile={profile} profiles={profiles}
       onCreated={food => onFoods(current => [food, ...current.filter(item => item.id !== food.id)])}

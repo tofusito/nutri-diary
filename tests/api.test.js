@@ -1,6 +1,7 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
-import {randomUUID} from 'node:crypto';
+import crypto,{randomUUID} from 'node:crypto';
+import express from 'express';
 import {MongoMemoryServer} from 'mongodb-memory-server';
 import {MongoClient} from 'mongodb';
 import {createApp,ensureIndexes} from '../server/app.js';
@@ -118,4 +119,64 @@ test('production authentication rejects bypass and enforces cookie and write ori
     assert.equal((await fetch(origin+'/api/logout',{method:'POST',headers:{Cookie:cookie.split(';')[0],Origin:'https://nutri.example.test'}})).status,200);
     assert.equal((await fetch(origin+'/api/profile',{headers:{Cookie:cookie.split(';')[0]}})).status,401);
   } finally {await new Promise(resolve=>authServer.close(resolve));}
+});
+
+test('Cloudflare Access assertions are verified when the origin is configured for it',async()=>{
+  const {publicKey,privateKey}=await new Promise((resolve,reject)=>crypto.generateKeyPair('rsa',{modulusLength:2048},(error,publicKey,privateKey)=>error?reject(error):resolve({publicKey,privateKey})));
+  const jwk={...publicKey.export({format:'jwk'}),kid:'test-key',alg:'RS256',use:'sig'};
+  const certs=express().get('/cdn-cgi/access/certs',(req,res)=>res.json({keys:[jwk]}));
+  const certsServer=certs.listen(0,'127.0.0.1');await new Promise(resolve=>certsServer.once('listening',resolve));
+  const certsUrl=`http://127.0.0.1:${certsServer.address().port}/cdn-cgi/access/certs`;
+  const team='team.cloudflareaccess.test';const aud='audience-tag';
+  const segment=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
+  const token=claims=>{
+    const body=`${segment({alg:'RS256',kid:'test-key',typ:'JWT'})}.${segment(claims)}`;
+    return `${body}.${crypto.sign('RSA-SHA256',Buffer.from(body),privateKey).toString('base64url')}`;
+  };
+  const now=Math.floor(Date.now()/1000);
+  const valid=token({iss:`https://${team}`,aud:[aud],exp:now+600,email:'quien@example.test'});
+  const app=createApp(client,{env:{NODE_ENV:'production',AUTH_MODE:'cloudflare',CF_ACCESS_TEAM_DOMAIN:team,CF_ACCESS_AUD:aud,CF_ACCESS_CERTS_URL:certsUrl}});
+  const server2=app.listen(0,'127.0.0.1');await new Promise(resolve=>server2.once('listening',resolve));
+  const origin=`http://127.0.0.1:${server2.address().port}`;
+  const get=(token)=>fetch(origin+'/api/profiles',{headers:token?{'Cf-Access-Jwt-Assertion':token}:{}});
+  try {
+    assert.equal((await get()).status,403,'sin assertion no se entra');
+    assert.equal((await get('no-es-un-jwt')).status,403);
+    assert.equal((await get(token({iss:`https://${team}`,aud:[aud],exp:now-10}))).status,403,'caducado');
+    assert.equal((await get(token({iss:`https://${team}`,aud:['otra-app'],exp:now+600}))).status,403,'otra aplicación');
+    assert.equal((await get(token({iss:'https://otro.cloudflareaccess.test',aud:[aud],exp:now+600}))).status,403,'otro equipo');
+    const tampered=valid.slice(0,-4)+'AAAA';
+    assert.equal((await get(tampered)).status,403,'firma alterada');
+    assert.equal((await get(valid)).status,200,'assertion válida');
+    assert.equal((await (await fetch(origin+'/api/session',{headers:{'Cf-Access-Jwt-Assertion':valid}})).json()).provider,'cloudflare');
+  } finally {
+    await new Promise(resolve=>server2.close(resolve));
+    await new Promise(resolve=>certsServer.close(resolve));
+  }
+});
+
+test('recent foods per meal list each food once, newest first',async()=>{
+  const [profile]=(await request('/api/profiles')).body;
+  const f=(await request('/api/foods','POST',{...food(),name:'Recent oats'})).body;
+  const g=(await request('/api/foods','POST',{...food(),name:'Recent toast'})).body;
+  await request('/api/entries','POST',{id:randomUUID(),date:'2026-05-01',meal:'Desayuno',food:f,quantity:40});
+  await request('/api/entries','POST',{id:randomUUID(),date:'2026-05-02',meal:'Desayuno',food:f,quantity:60});
+  await request('/api/entries','POST',{id:randomUUID(),date:'2026-05-02',meal:'Cena',food:g,quantity:90});
+  const breakfast=(await request(`/api/entries/recent?meal=Desayuno&profile=${profile.id}`)).body;
+  assert.equal(breakfast.filter(row=>row.food.name==='Recent oats').length,1,'un alimento aparece una sola vez');
+  assert.equal(breakfast.find(row=>row.food.name==='Recent oats').quantity,60,'conserva la cantidad más reciente');
+  assert.ok(!breakfast.some(row=>row.food.name==='Recent toast'),'no mezcla otras comidas');
+  assert.equal((await request('/api/entries/recent?meal=Merienda')).body.length,0);
+  assert.equal((await request('/api/entries/recent?meal=Brunch')).status,400);
+  assert.equal((await request('/api/entries/recent?limit=0')).status,400);
+});
+
+test('the food catalogue reports its real size beyond one page',async()=>{
+  const before=(await request('/api/foods/count')).body.total;
+  await request('/api/foods','POST',{...food(),name:'Counted food'});
+  assert.equal((await request('/api/foods/count')).body.total,before+1);
+  const response=await fetch(base+'/api/foods?limit=1');
+  assert.equal((await response.json()).length,1);
+  assert.equal(Number(response.headers.get('x-total-count')),before+1);
+  assert.equal((await request('/api/foods?limit=0')).status,400);
 });

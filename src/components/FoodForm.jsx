@@ -8,11 +8,12 @@ const fields = [['kcal', 'kcal'], ['carbs', 'Hidratos'], ['protein', 'Proteínas
 /** Minimal by default: name, barcode and the four values per 100 g/ml. Brand,
  *  portion, favorite, label OCR and the private QR stay behind "Más opciones".
  *  Whatever is saved here goes to the shared catalog every profile searches. */
-export default function FoodForm({ initial, onSave, onCancel }) {
+export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
   const [food, setFood] = useState(initial || emptyFood())
   const [ocr, setOcr] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState('')
   const set = (key, value) => setFood(previous => ({ ...previous, [key]: value }))
   const nutrient = (key, value) => setFood(previous => ({ ...previous, nutrients: { ...previous.nutrients, [key]: number(value) } }))
@@ -57,6 +58,17 @@ export default function FoodForm({ initial, onSave, onCancel }) {
       {ocr && <details><summary>Texto leído, para confirmar</summary><pre>{ocr}</pre></details>}
       {food.id && <div className="qr-row"><QrCode foodId={food.id} /><span className="muted">QR privado: solo identifica este alimento en tu diario.</span></div>}
     </details>
+
+    {onDelete && (confirming
+      ? <div className="confirm-row">
+          <span>¿Eliminar «{food.name}» de la biblioteca? Lo ya registrado en los diarios se conserva.</span>
+          <button type="button" className="secondary" onClick={() => setConfirming(false)}>No</button>
+          <button type="button" className="danger" disabled={saving} onClick={async () => {
+            setSaving(true)
+            try { await onDelete() } catch (err) { setError(err.message || 'No se pudo eliminar.'); setSaving(false); setConfirming(false) }
+          }}>Sí, eliminar</button>
+        </div>
+      : <button type="button" className="link-button danger" onClick={() => setConfirming(true)}>Eliminar de la biblioteca</button>)}
 
     {error && <p className="error" role="alert">{error}</p>}
     <footer className="form-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="submit" disabled={saving || loading}>{saving ? 'Guardando…' : 'Guardar alimento'}</button></footer>

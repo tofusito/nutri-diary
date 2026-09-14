@@ -25,6 +25,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   const [quantity, setQuantity] = useState(100)
   const [alsoFor, setAlsoFor] = useState({})
   const [saving, setSaving] = useState(false)
+  const [recent, setRecent] = useState([])
   const validQuantity = value => Number.isFinite(Number(value)) && Number(value) > 0
   const request = useRef(0)
   const entryIds = useRef({})
@@ -51,6 +52,19 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
     }, 450)
     return () => { clearTimeout(timer); request.current++ }
   }, [query])
+
+  // What this profile usually eats at this meal: the common case is repeating
+  // yesterday's breakfast, not searching for it again.
+  useEffect(() => {
+    if (!profile?.id) return
+    let alive = true
+    api(`/api/entries/recent?meal=${encodeURIComponent(meal)}&profile=${profile.id}`)
+      .then(rows => { if (alive) setRecent(rows.filter(row => hasKcal(row.food))) })
+      .catch(() => { if (alive) setRecent([]) })
+    return () => { alive = false }
+  }, [meal, profile?.id])
+
+  const repeat = row => { entryIds.current = {}; setChosen(row.food); setQuantity(row.quantity || row.food.servingSize || 100) }
 
   const scan = async code => {
     setScanner(false); setQuery(code); setLoading(true); setMessage('')
@@ -149,6 +163,16 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
     {loading && <p className="muted">Buscando…</p>}
     {message && <p className="error">{message}</p>}
     <div className="results">
+      {!query.trim() && recent.length > 0 && <>
+        <h3>Repetir en {meal.toLowerCase()} <small>{recent.length}</small></h3>
+        {recent.map(row => <button className="result" key={row.food.id + row.date} onClick={() => repeat(row)}>
+          <span className="result-dot star">↺</span>
+          <span className="result-body"><strong>{row.food.name}</strong>
+            <small>{row.quantity} {row.food.basis} · {nutrientText(scaleNutrients(row.food.nutrients, row.quantity).kcal)} kcal</small>
+            <small className="result-macros"><Macros nutrients={scaleNutrients(row.food.nutrients, row.quantity)} /></small>
+          </span>
+        </button>)}
+      </>}
       <h3>Tuyos <small>{mine.length}</small></h3>
       {mine.length ? mine.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} />) : <p className="empty">Nada en tu biblioteca todavía.</p>}
       <h3>Open Food Facts <small>{external.length}</small></h3>

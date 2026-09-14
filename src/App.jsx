@@ -7,6 +7,7 @@ import Progress from './views/Progress.jsx'
 import Profile from './views/Profile.jsx'
 import ChooseProfile from './views/ChooseProfile.jsx'
 import Icon from './components/Icon.jsx'
+import Modal from './components/Modal.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 const PROFILE_KEY = 'nutri-profile'
@@ -34,6 +35,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [undo, setUndo] = useState(null)
   const [pending, setPending] = useState(0)
+  const [copyPlan, setCopyPlan] = useState(null)
   const loadId = useRef(0)
 
   const profile = (profiles || []).find(item => item.id === profileId) || null
@@ -96,27 +98,39 @@ export default function App() {
       catch (err) { throw new Error(`No se ha podido añadir a ${profiles.find(item => item.id === target.id)?.name || 'el otro perfil'}: ${err.message}. Revisa los diarios antes de repetir: las personas anteriores pueden haberse guardado.`) }
     }
   }
-  const edit = async entry => {
-    const quantity = prompt(`Cantidad en ${entry.food.basis}:`, entry.quantity)
-    if (quantity === null) return
-    if (!Number.isFinite(Number(quantity)) || Number(quantity) <= 0) return setError('Introduce una cantidad mayor que cero.')
-    try {
-      const updated = await api(`/api/entries/${entry.id}`, { method: 'PATCH', body: JSON.stringify({ quantity: Number(quantity) }) })
-      setEntries(current => current.map(item => item.id === entry.id ? updated : item))
-    } catch (err) { setError(err.message) }
+  /** Changes come from the edit sheet already validated; a move to another day
+   *  drops the entry from the day on screen. Errors travel back to the sheet. */
+  const edit = async (entry, changes) => {
+    const updated = await api(`/api/entries/${entry.id}`, { method: 'PATCH', body: JSON.stringify(changes) })
+    setEntries(current => updated.date === date
+      ? current.map(item => item.id === entry.id ? updated : item)
+      : current.filter(item => item.id !== entry.id))
   }
   const remove = async entry => {
     setEntries(current => current.filter(item => item.id !== entry.id)); setUndo(entry)
     try { await api(`/api/entries/${entry.id}`, { method: 'DELETE' }) } catch (err) { setEntries(current => [...current, entry]); setUndo(null); setError(err.message) }
   }
   const restore = async () => { if (!undo) return; const entry = undo; setUndo(null); try { await add(entry) } catch (err) { setError(err.message); setUndo(entry) } }
+  /** Copying the previous day is easy to press twice, so it asks first and
+   *  leaves out anything already registered instead of duplicating the day. */
+  const signature = entry => `${entry.meal}|${entry.food.name}|${entry.quantity}`
   const copy = async () => {
     const previousDay = new Date(`${date}T12:00:00`); previousDay.setDate(previousDay.getDate() - 1)
     try {
       const prior = await api(withScope(`/api/entries?date=${localDate(previousDay)}`))
       if (!prior.length) return setError('El día anterior está vacío.')
-      for (const entry of prior) await add({ ...entry, id: crypto.randomUUID(), date })
+      const already = new Set(entries.map(signature))
+      const missing = prior.filter(entry => !already.has(signature(entry)))
+      if (!missing.length) return setError('Ya tienes registrado todo lo del día anterior.')
+      setCopyPlan({ missing, skipped: prior.length - missing.length })
     } catch (err) { setError(err.message) }
+  }
+  const confirmCopy = async () => {
+    const plan = copyPlan
+    setCopyPlan(null)
+    if (!plan) return
+    try { for (const entry of plan.missing) await add({ ...entry, id: crypto.randomUUID(), date }) }
+    catch (err) { setError(err.message) }
   }
   const saveProfile = async value => {
     const saved = await api(`/api/profiles/${value.id}`, { method: 'PUT', body: JSON.stringify(value) })
@@ -151,6 +165,12 @@ export default function App() {
     {error && <div className="toast error">{error}<button onClick={() => setError('')}>×</button></div>}
     <ErrorBoundary key={tab}>{view}</ErrorBoundary>
     {undo && <div className="undo">Entrada eliminada <button onClick={restore}>Deshacer</button><button onClick={() => setUndo(null)}>×</button></div>}
+    {copyPlan && <Modal title="Copiar el día anterior" onClose={() => setCopyPlan(null)}>
+      <p>Se añadirán <b>{copyPlan.missing.length}</b> entrada{copyPlan.missing.length > 1 ? 's' : ''} del día anterior.</p>
+      {copyPlan.skipped > 0 && <p className="muted">{copyPlan.skipped} ya {copyPlan.skipped > 1 ? 'están' : 'está'} en este día y se {copyPlan.skipped > 1 ? 'omiten' : 'omite'}.</p>}
+      <ul className="plan-list">{copyPlan.missing.map(entry => <li key={entry.id}>{entry.meal} · {entry.food.name} · {entry.quantity} {entry.food.basis}</li>)}</ul>
+      <footer className="form-actions"><button className="secondary" onClick={() => setCopyPlan(null)}>Cancelar</button><button onClick={confirmCopy}>Añadir</button></footer>
+    </Modal>}
     <nav aria-label="Navegación principal" style={{ '--active-tab': ['Hoy', 'Alimentos', 'Progreso', 'Perfil'].indexOf(tab) }}>{['Hoy', 'Alimentos', 'Progreso', 'Perfil'].map(item =>
       <button key={item} className={tab === item ? 'active' : ''} onClick={() => { setTab(item); window.scrollTo({ top: 0, behavior: 'instant' }) }} aria-current={tab === item ? 'page' : undefined}>
         <Icon name={item.toLowerCase()} />{item}</button>)}</nav>
