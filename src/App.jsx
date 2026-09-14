@@ -22,6 +22,7 @@ function Login({ onLogin }) {
 
 export default function App() {
   const [auth, setAuth] = useState(null)
+  const [authProvider, setAuthProvider] = useState('password')
   const [tab, setTab] = useState('Hoy')
   const [date, setDate] = useState(localDate())
   const [profiles, setProfiles] = useState(null)
@@ -47,7 +48,7 @@ export default function App() {
     } catch (err) { setError(err.message) }
   }
 
-  useEffect(() => { api('/api/session').then(session => setAuth(session.authenticated)).catch(() => setAuth(false)) }, [])
+  useEffect(() => { api('/api/session').then(session => { setAuthProvider(session.provider || 'password'); setAuth(session.authenticated) }).catch(() => setAuth(false)) }, [])
   useEffect(() => { if (auth) load() }, [auth, date, profileId])
   useEffect(() => {
     const sync = async () => {
@@ -116,14 +117,14 @@ export default function App() {
     await api(`/api/profiles/${id}`, { method: 'DELETE' })
     setProfiles(current => (current || []).filter(item => item.id !== id)); selectProfile('')
   }
-  const logout = async () => { await api('/api/logout', { method: 'POST' }); clearPrivateCache(); setEntries([]); setFoods([]); selectProfile(''); setAuth(false) }
+  const logout = async () => { await api('/api/logout', { method: 'POST' }); clearPrivateCache(); setEntries([]); setFoods([]); selectProfile(''); if (authProvider === 'cloudflare') { window.location.assign('/cdn-cgi/access/logout'); return } setAuth(false) }
 
   const view = useMemo(() => ({
     Hoy: <Today date={date} setDate={setDate} entries={entries} profile={profile} profiles={profiles || []} foods={foods} onFoods={setFoods} onAdd={addForProfiles} onEdit={edit} onDelete={remove} onCopy={copy} />,
     Alimentos: <Foods foods={foods} onFoods={setFoods} />,
     Progreso: <Progress scope={scope} />,
     Perfil: <Profile profiles={profiles || []} profileId={profileId} onSave={saveProfile} onCreate={createProfile} onDelete={deleteProfile} onSwitch={() => selectProfile('')} onLogout={logout} pending={pending} />,
-  })[tab], [tab, date, entries, profile, profiles, foods, pending, scope, profileId])
+  })[tab], [tab, date, entries, profile, profiles, foods, pending, scope, profileId, authProvider])
 
   if (auth === null) return <main className="login"><p className="muted">Cargando tu diario…</p></main>
   if (!auth) return <Login onLogin={() => setAuth(true)} />

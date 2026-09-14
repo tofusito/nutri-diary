@@ -20,6 +20,12 @@ Production build and diff whitespace check passed. Temporary local MongoDB used 
 
 ## References
 
+## Homelab authentication
+
+`deploy/cloudflare-auth.yaml` is installed as `compose.override.yaml` beside the homelab stack. It selects `AUTH_MODE=cloudflare` and clears the app password/session secret in the container. Authentication is delegated entirely to Cloudflare Access; this mode does not validate Access JWTs at the origin. Keep the origin without published ports and the frontend network restricted to this app and its tunnel. Never bypass Access for `/api/*` or the diary. Logout redirects to Cloudflare's logout endpoint.
+
+Home screen icon: the correct PNG is deployed, but Access also redirects unauthenticated PNG requests. A narrowly scoped public exception for the three `/noodle-{180,192,512}.png` paths is pending dashboard access. The real iOS installation flow still needs verification after that change.
+
 - https://help.macrofactorapp.com/en/articles/22-get-to-know-your-dashboard
 - https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/backdrop-filter
 - https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/prefers-reduced-motion

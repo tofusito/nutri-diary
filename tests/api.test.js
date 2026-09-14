@@ -81,6 +81,20 @@ test('unknown nutrient remains null in progress, invalid inputs rejected',async(
   assert.equal((await request('/api/search?provider=usda&q=rice')).status,503);
   assert.equal((await request('/api/search?provider=none&q=oats')).body.mine[0].name,'Test oats');
 });
+test('Cloudflare gateway mode needs no second password and still rejects cross-origin writes',async()=>{
+  const gateway=createApp(client,{env:{NODE_ENV:'production',AUTH_MODE:'cloudflare',APP_ORIGIN:'https://nutri.example.test'}}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>gateway.once('listening',resolve));
+  const origin=`http://127.0.0.1:${gateway.address().port}`;
+  try {
+    const session=await (await fetch(origin+'/api/session')).json();
+    assert.deepEqual(session,{authenticated:true,provider:'cloudflare'});
+    assert.equal((await fetch(origin+'/api/foods')).status,200);
+    assert.equal((await fetch(origin+'/api/foods',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://evil.example'},body:JSON.stringify(food())})).status,403);
+    const login=await fetch(origin+'/api/login',{method:'POST',headers:{Origin:'https://nutri.example.test'}});
+    assert.equal(login.status,200);assert.equal(login.headers.get('set-cookie'),null);
+  } finally {await new Promise(resolve=>gateway.close(resolve));}
+});
+
 test('production authentication rejects bypass and enforces cookie and write origin',async()=>{
   const app=createApp(client,{env:{NODE_ENV:'production',DEV_AUTH_BYPASS:'1',APP_PASSWORD:'test-password-only',APP_ORIGIN:'https://nutri.example.test'}});
   const authServer=app.listen(0,'127.0.0.1');await new Promise(resolve=>authServer.once('listening',resolve));

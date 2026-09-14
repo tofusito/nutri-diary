@@ -1,0 +1,7 @@
+# Apply only to the private homelab stack. The origin must have no public ports.
+services:
+  nutri-diary:
+    environment:
+      AUTH_MODE: cloudflare
+      APP_PASSWORD: ""
+      SESSION_SECRET: ""

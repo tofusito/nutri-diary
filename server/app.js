@@ -183,6 +183,9 @@ export function createApp(databaseOrClient, options = {}) {
   const env = options.env || process.env;
   const production = env.NODE_ENV === 'production';
   const password = env.APP_PASSWORD;
+  // Explicit deployment contract: only the authenticated Cloudflare tunnel can
+  // reach the origin. Do not enable this mode on a published origin port.
+  const gatewayAuth = env.AUTH_MODE === 'cloudflare';
   const bypass = !production && env.DEV_AUTH_BYPASS === '1';
   const sessionSecret = env.SESSION_SECRET || crypto.randomBytes(32).toString('base64url');
   const configuredOrigin = env.APP_ORIGIN?.replace(/\/$/, '');
@@ -205,6 +208,7 @@ export function createApp(databaseOrClient, options = {}) {
     res.cookie('nutri_session', token, { httpOnly: true, sameSite: 'strict', secure: production, path: '/', maxAge: SESSION_MS });
   };
   const authenticated = (req) => {
+    if (gatewayAuth) return true;
     if (bypass) return true;
     if (!password) return false;
     const token = parseCookies(req.headers.cookie).nutri_session;
@@ -238,13 +242,14 @@ export function createApp(databaseOrClient, options = {}) {
 
   app.get('/api/health', (req, res) => res.json({ ok: true }));
   app.post('/api/login', requireSameOrigin, (req, res, next) => {
+    if (gatewayAuth) return res.json({ authenticated: true, provider: 'cloudflare' });
     if (!password) return next(new ApiError(503, 'La autenticación no está configurada.'));
     if (!allowLoginAttempt(req)) return next(new ApiError(429, 'Demasiados intentos. Inténtalo más tarde.'));
     if (!constantTimeEquals(password, req.body?.password)) return next(new ApiError(401, 'Contraseña incorrecta.'));
     issueSession(res);
     return res.json({ authenticated: true });
   });
-  app.get('/api/session', (req, res) => res.json({ authenticated: authenticated(req) }));
+  app.get('/api/session', (req, res) => res.json({ authenticated: authenticated(req), provider: gatewayAuth ? 'cloudflare' : 'password' }));
   app.post('/api/logout', requireSameOrigin, (req, res) => {
     const id = parseCookies(req.headers.cookie).nutri_session?.split('.')[0];
     if (id) sessions.delete(id);
