@@ -47,7 +47,7 @@ export default function Progress({ scope = '' }) {
             return <div className="bar-day" key={row.date}>
               <div className="bar-track">
                 {row.goal?.kcal ? <span className="bar-goal" style={{ bottom: `${Math.min(100, row.goal.kcal / max * 100)}%` }} /> : null}
-                <i style={{ height: `${(row.kcal || 0) / max * 100}%`, background: over ? '#ff8b7b' : '#d9ff82' }} />
+                <i style={{ height: `${(row.kcal || 0) / max * 100}%`, background: over ? 'var(--over)' : 'var(--kcal)' }} />
               </div>
               <strong>{Math.round(row.kcal || 0)}</strong>
               <span>{shortDate(row.date)}</span>

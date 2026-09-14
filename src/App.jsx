@@ -16,7 +16,7 @@ function Login({ onLogin }) {
     event.preventDefault()
     try { await api('/api/login', { method: 'POST', body: JSON.stringify({ password }) }); onLogin() } catch (err) { setError(err.message) }
   }
-  return <main className="login"><p className="eyebrow">NUTRI</p><h1>Tu nutrición,<br />en claro.</h1><p>Un diario privado, simple y vuestro.</p>
+  return <main className="login"><img className="brand-icon" src="/noodle-192.png" alt="" /><p className="eyebrow">NUTRI</p><h1>Tu nutrición,<br />en claro.</h1><p>Un diario privado, simple y vuestro.</p>
     <form className="form" onSubmit={submit}><label>Contraseña<input type="password" autoFocus value={password} onChange={event => setPassword(event.target.value)} /></label><button>Entrar</button>{error && <p className="error">{error}</p>}</form></main>
 }
 
@@ -133,8 +133,8 @@ export default function App() {
     {error && <div className="toast error">{error}<button onClick={() => setError('')}>×</button></div>}
     {view}
     {undo && <div className="undo">Entrada eliminada <button onClick={restore}>Deshacer</button><button onClick={() => setUndo(null)}>×</button></div>}
-    <nav>{['Hoy', 'Alimentos', 'Progreso', 'Perfil'].map(item =>
-      <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)} aria-current={tab === item ? 'page' : undefined}>
+    <nav aria-label="Navegación principal" style={{ '--active-tab': ['Hoy', 'Alimentos', 'Progreso', 'Perfil'].indexOf(tab) }}>{['Hoy', 'Alimentos', 'Progreso', 'Perfil'].map(item =>
+      <button key={item} className={tab === item ? 'active' : ''} onClick={() => { setTab(item); window.scrollTo({ top: 0, behavior: 'instant' }) }} aria-current={tab === item ? 'page' : undefined}>
         <Icon name={item.toLowerCase()} />{item}</button>)}</nav>
   </div>
 }
