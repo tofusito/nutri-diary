@@ -145,6 +145,16 @@ try {
   const withKeyboard = await sheet.boundingBox();
   assert.ok(Math.abs(withKeyboard.y + withKeyboard.height - (844 - 336)) <= 1, 'the sheet ignores the keyboard inset');
   assert.ok(withKeyboard.height > 200, 'the sheet collapsed above the keyboard');
+  // The sheet's surface has to carry on through the inset, or iOS leaves a dark
+  // band between it and the floating accessory bar.
+  const skirt = await page.evaluate(() => {
+    const box = document.querySelector('.modal-backdrop');
+    const after = getComputedStyle(box, '::after');
+    const surface = getComputedStyle(document.querySelector('.modal')).backgroundColor;
+    return { height: parseFloat(after.height), colour: after.backgroundColor, surface };
+  });
+  assert.equal(Math.round(skirt.height), 336, 'the surface does not carry through the keyboard inset');
+  assert.equal(skirt.colour, skirt.surface, 'the extension is not the sheet colour');
   const veil = await page.evaluate(() => {
     const box = document.querySelector('.modal-backdrop');
     const before = getComputedStyle(box, '::before');
@@ -190,5 +200,5 @@ try {
   await zeroMacro.pressSequentially('37');
   assert.equal(await zeroMacro.inputValue(), '37', 'zero macro should be replaced on first typing');
   assert.deepEqual(errors, []);
-  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; the search sheet filling a keyboard-sized viewport with no gap under it; the sheet riding on top of a keyboard inset while the veil still covers the screen; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
+  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; the search sheet filling a keyboard-sized viewport with no gap under it; the sheet riding on top of a keyboard inset while the veil still covers the screen and the surface carries on through it; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }
