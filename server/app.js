@@ -512,17 +512,6 @@ export function createApp(databaseOrClient, options = {}) {
     await searchCache.updateOne({ cacheKey }, { $set: { cacheKey, foods: result, expiresAt: new Date(Date.now() + OFF_CACHE_MS) } }, { upsert: true });
     return result;
   }
-  async function usdaBySearch(query) {
-    const url = new URL('https://api.nal.usda.gov/fdc/v1/foods/search');
-    url.search = new URLSearchParams({ api_key: env.USDA_API_KEY, query, pageSize: '20' });
-    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!response.ok) throw new ApiError(502, 'USDA no está disponible.');
-    const payload = await response.json();
-    return (payload.foods || []).map((item) => {
-      const nutrient = (id, unit) => item.foodNutrients?.find((row) => row.nutrientId === id && String(row.unitName || '').toUpperCase() === unit)?.value ?? null;
-      return { id: crypto.randomUUID(), name: item.description, brand: item.brandOwner || undefined, basis: 'g', nutrients: { kcal: nutrient(1008, 'KCAL'), carbs: nutrient(1005, 'G'), protein: nutrient(1003, 'G'), fat: nutrient(1004, 'G') }, source: 'usda', sourceId: String(item.fdcId) };
-    });
-  }
   const myFoods = (filter) => foods.find(filter, { projection: { _id: 0 } }).sort({ favorite: -1, name: 1 }).limit(25).toArray();
 
   app.get('/api/lookup/:barcode', async (req, res) => {
@@ -538,15 +527,14 @@ export function createApp(databaseOrClient, options = {}) {
     const provider = req.query.provider || 'off';
     const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     assert(query.length >= 2 && query.length <= 100, 'La búsqueda debe tener entre 2 y 100 caracteres.');
-    assert(['off', 'usda', 'none'].includes(provider), 'Proveedor de búsqueda inválido.');
-    if (provider === 'usda' && !env.USDA_API_KEY) throw new ApiError(503, 'La búsqueda USDA no está configurada: falta USDA_API_KEY.');
+    assert(['off', 'none'].includes(provider), 'Proveedor de búsqueda inválido.');
     const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const mine = await myFoods({ $or: [{ name: { $regex: escaped, $options: 'i' } }, { brand: { $regex: escaped, $options: 'i' } }, { barcode: { $regex: escaped, $options: 'i' } }] });
     const isBarcode = /^[0-9]{6,14}$/.test(query);
     let external = [];
     let externalError;
     if (provider !== 'none') {
-      try { external = provider === 'usda' ? await usdaBySearch(query) : isBarcode ? await offByBarcode(query) : await offBySearch(query); }
+      try { external = isBarcode ? await offByBarcode(query) : await offBySearch(query); }
       catch (error) { externalError = error.message || 'La búsqueda externa no está disponible.'; }
     }
     res.json({ mine, external, ...(externalError ? { externalError } : {}) });

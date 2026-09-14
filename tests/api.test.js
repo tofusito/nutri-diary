@@ -89,7 +89,7 @@ test('unknown nutrient remains null in progress, invalid inputs rejected',async(
   assert.equal((await request('/api/entries?date=2026-02-30')).status,400);
   assert.equal((await request('/api/entries','POST',{id:randomUUID(),date:'2026-02-20',meal:'Cena',food:f,quantity:-1})).status,400);
   assert.equal((await request('/api/progress?from=2000-01-01&to=2026-01-01')).status,400);
-  assert.equal((await request('/api/search?provider=usda&q=rice')).status,503);
+  assert.equal((await request('/api/search?provider=usda&q=rice')).status,400);
   assert.equal((await request('/api/search?provider=none&q=oats')).body.mine[0].name,'Test oats');
 });
 test('Cloudflare gateway mode needs no second password and still rejects cross-origin writes',async()=>{

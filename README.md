@@ -84,7 +84,7 @@ docker compose up -d --build
 
 **No service publishes a host port.** The app and MongoDB share an internal network that has no route out; a second network exists only so the tunnel connector can reach the app and so the app can reach Open Food Facts. The app runs read-only with `no-new-privileges` and memory, CPU and process limits, and MongoDB is reachable only with the application credentials, scoped to the two databases and nothing else.
 
-Because nothing is published, you need an ingress. The tunnel connector sits behind the `tunnel` Compose profile, so a plain `up -d` will not start it — use `docker compose --profile tunnel up -d cloudflare`, or set `COMPOSE_PROFILES=tunnel`. With a host-installed cloudflared instead, point the hostname at the app container. Creating the tunnel and its DNS record is a manual step this repository does not perform.
+Because nothing is published, the tunnel is the way in, and the connector is part of the stack: `up -d` brings it up with everything else and compose refuses to start without a `TUNNEL_TOKEN`. Running cloudflared on the host instead? Drop that service and point the hostname at the app container. Creating the tunnel and its DNS record is a manual step this repository does not perform.
 
 State lives where `MONGO_DATA_PATH` and `BACKUP_PATH` say, `./data/...` by default. Containers carry the `autoheal` label, so a [willfarrell/autoheal](https://github.com/willfarrell/docker-autoheal) sidecar will restart them when a health check fails.
 
@@ -96,7 +96,7 @@ On the phone: open the HTTPS site and Add to Home Screen. Barcode scanning needs
 
 A React PWA, an Express API and one MongoDB instance with two databases. `nutrition_catalog` holds the shared foods and the cache of external lookups; `nutrition_tracking` holds profiles, goal history and diary entries, each row stamped with its `profileId`. Client-generated UUIDs make a lost response safe to retry. Deleting a profile deletes its diary and goal history, and the last remaining profile cannot be deleted. An older single-profile database migrates on startup: the previous profile becomes `Perfil 1` and its rows are stamped with its id.
 
-Open Food Facts data is community-maintained and sometimes incomplete, which is why missing values stay missing. Text search goes through `search.openfoodfacts.org`; a barcode is asked of the search index and the product endpoint at once, so one of them being rate limited does not look like an outage. Product reads and searches keep separate rate-limit queues, and attribution stays in the interface. An optional `USDA_API_KEY` enables FoodData Central, which is a US catalogue: its carbohydrate figures are defined differently from EU labels, so review anything you take from it.
+Open Food Facts data is community-maintained and sometimes incomplete, which is why missing values stay missing. Text search goes through `search.openfoodfacts.org`; a barcode is asked of the search index and the product endpoint at once, so one of them being rate limited does not look like an outage. Product reads and searches keep separate rate-limit queues, and attribution stays in the interface.
 
 Label OCR runs in the browser and its fields are suggestions to confirm, not readings to trust. Photos are never stored as diary records. This reads labels; it does not estimate calories from a photo of your plate.
 
@@ -111,7 +111,7 @@ A local copy shares the host's failure domain. Move it to another machine before
 ## Sources
 
 - [Open Food Facts API](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/) and [licensing](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/tutorials/license-be-on-the-legal-side/)
-- [FoodData Central API](https://fdc.nal.usda.gov/api-guide/) · [Mifflin et al., original equation](https://www.carnotdiet.com/Files/BMRMifflin1990.pdf)
+- [Mifflin et al., original equation](https://www.carnotdiet.com/Files/BMRMifflin1990.pdf)
 - [ZXing browser](https://github.com/zxing-js/browser) · [Tesseract.js](https://github.com/naptha/tesseract.js) · [PWA installation](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable)
 - [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/) and [protecting self-hosted apps](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)
 - [Vite](https://vite.dev/guide/) · [Express](https://expressjs.com/en/starter/basic-routing/) · [MongoDB Node driver](https://www.mongodb.com/docs/drivers/node/current/get-started/)

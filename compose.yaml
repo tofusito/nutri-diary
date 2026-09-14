@@ -19,7 +19,6 @@ services:
       CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:-}
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
       OFF_USER_AGENT: ${OFF_USER_AGENT:-NutriDiary/0.1 (personal nutrition diary)}
-      USDA_API_KEY: ${USDA_API_KEY:-}
       # The application opens the nutrition_catalog and nutrition_tracking
       # databases over this connection; the user authenticates against admin.
       MONGODB_URI: mongodb://${MONGO_APP_USERNAME}:${MONGO_APP_PASSWORD}@nutri-diary-mongo:27017/?authSource=admin
@@ -134,13 +133,10 @@ services:
   cloudflare:
     image: cloudflare/cloudflared:latest
     container_name: cloudflare-nutri-diary
-    # Opt-in: without a token cloudflared restarts forever, so it stays out of a
-    # plain `up -d`. Set COMPOSE_PROFILES=tunnel in .env to include it there.
-    profiles: ["tunnel"]
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Set TUNNEL_TOKEN in .env; the tunnel is part of this stack}
     depends_on:
       nutri-diary:
         condition: service_healthy

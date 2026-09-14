@@ -186,7 +186,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   </Modal>
 }
 
-const sourceLabel = food => food.source === 'openfoodfacts' ? 'Open Food Facts' : food.source === 'usda' ? 'USDA' : ''
+const sourceLabel = food => food.source === 'openfoodfacts' ? 'Open Food Facts' : ''
 
 function Row({ food, onPick, external }) {
   return <button className="result" onClick={onPick}>

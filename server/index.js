@@ -4,7 +4,7 @@ import express from 'express';
 import { MongoClient } from 'mongodb';
 import { createApp, ensureIndexes } from './app.js';
 
-const mongoUrl = process.env.MONGODB_URI || process.env.MONGO_URL || 'mongodb://127.0.0.1:27017';
+const mongoUrl = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
 const port = Number(process.env.PORT || 3100);
 const host = process.env.HOST || '127.0.0.1';
 const client = new MongoClient(mongoUrl);
