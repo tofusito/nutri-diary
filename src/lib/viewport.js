@@ -1,43 +1,44 @@
-/** How much of the bottom of the fixed-position coordinate space the on-screen
- *  keyboard covers.
- *
- *  This cannot be derived from visualViewport alone. Blink positions fixed
- *  elements against the layout viewport, which the keyboard does not shrink, so
- *  the inset is the difference between the two. WebKit reattaches them to the
- *  visual viewport, where the keyboard is already excluded and the same formula
- *  double counts — which is what left a strip of the page showing under a
- *  sheet. Rather than branch on the engine, a real fixed element is measured:
- *  the answer is then correct in both, and in whatever they do next. */
+/** Fit sheets to the visible viewport, including Safari's keyboard pan.
+ * Measure the fixed coordinate origin instead of subtracting a guessed keyboard.
+ * https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport
+ */
 export function trackViewport() {
   const viewport = window.visualViewport
+  if (!viewport) return () => {}
   const root = document.documentElement
-  if (!viewport) return
-
   const probe = document.createElement('div')
   probe.setAttribute('aria-hidden', 'true')
-  probe.style.cssText = 'position:fixed;left:0;bottom:0;width:0;height:0;pointer-events:none;visibility:hidden'
+  probe.style.cssText = 'position:fixed;inset:0;pointer-events:none;visibility:hidden'
   document.body.append(probe)
-
+  let frame = 0
+  let settle = 0
   const apply = () => {
-    // Both sides in client coordinates: where a fixed bottom lands, against
-    // where the part of the page the user can actually see ends.
-    const fixedBottom = probe.getBoundingClientRect().bottom
-    const visibleBottom = viewport.offsetTop + viewport.height
-    root.style.setProperty('--keyboard-inset', `${Math.max(0, Math.round(fixedBottom - visibleBottom))}px`)
+    frame = 0
+    const bounds = probe.getBoundingClientRect()
+    root.style.setProperty('--sheet-top', `${viewport.offsetTop - bounds.top}px`)
+    root.style.setProperty('--sheet-height', `${viewport.height}px`)
+    root.classList.toggle('keyboard-open', bounds.height - viewport.height > 120 && viewport.scale === 1)
   }
-  // iOS raises the keyboard in stages and the suggestion bar can appear, grow
-  // or vanish while typing without a reliable resize event, so the measurement
-  // is repeated for as long as something is focused rather than taken once.
-  let watching = 0
-  const watch = () => {
-    clearInterval(watching)
-    apply()
-    watching = setInterval(apply, 250)
-    setTimeout(() => { clearInterval(watching); watching = 0; apply() }, 4_000)
+  const schedule = () => { if (!frame) frame = requestAnimationFrame(apply) }
+  const focus = () => {
+    schedule()
+    clearTimeout(settle)
+    settle = setTimeout(schedule, 350)
   }
+  viewport.addEventListener('resize', schedule)
+  viewport.addEventListener('scroll', schedule)
+  window.addEventListener('resize', schedule)
+  document.addEventListener('focusin', focus)
+  document.addEventListener('focusout', focus)
   apply()
-  viewport.addEventListener('resize', apply)
-  viewport.addEventListener('scroll', apply)
-  addEventListener('focusin', watch)
-  addEventListener('focusout', watch)
+  return () => {
+    cancelAnimationFrame(frame)
+    clearTimeout(settle)
+    viewport.removeEventListener('resize', schedule)
+    viewport.removeEventListener('scroll', schedule)
+    window.removeEventListener('resize', schedule)
+    document.removeEventListener('focusin', focus)
+    document.removeEventListener('focusout', focus)
+    probe.remove()
+  }
 }

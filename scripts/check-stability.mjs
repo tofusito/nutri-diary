@@ -134,36 +134,6 @@ try {
     assert.ok(await page.locator('.results').evaluate(el => el.scrollHeight >= el.clientHeight), 'results should scroll inside the sheet');
     await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   }
-  // A real iOS keyboard cannot be opened here, so the inset it publishes is set
-  // directly: the sheet has to sit on top of it, not behind it.
-  await page.setViewportSize({ width: 390, height: 844 });
-  await tab('Hoy');
-  await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
-  const sheet = page.getByRole('dialog');
-  await sheet.evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
-  await page.evaluate(() => document.documentElement.style.setProperty('--keyboard-inset', '336px'));
-  const withKeyboard = await sheet.boundingBox();
-  assert.ok(Math.abs(withKeyboard.y + withKeyboard.height - (844 - 336)) <= 1, 'the sheet ignores the keyboard inset');
-  assert.ok(withKeyboard.height > 200, 'the sheet collapsed above the keyboard');
-  // The sheet's surface has to carry on through the inset, or iOS leaves a dark
-  // band between it and the floating accessory bar.
-  const skirt = await page.evaluate(() => {
-    const box = document.querySelector('.modal-backdrop');
-    const after = getComputedStyle(box, '::after');
-    const surface = getComputedStyle(document.querySelector('.modal')).backgroundColor;
-    return { height: parseFloat(after.height), colour: after.backgroundColor, surface };
-  });
-  assert.equal(Math.round(skirt.height), 336, 'the surface does not carry through the keyboard inset');
-  assert.equal(skirt.colour, skirt.surface, 'the extension is not the sheet colour');
-  const veil = await page.evaluate(() => {
-    const box = document.querySelector('.modal-backdrop');
-    const before = getComputedStyle(box, '::before');
-    return { bottom: box.getBoundingClientRect().bottom, veilBottom: parseFloat(before.bottom), veilTop: parseFloat(before.top) };
-  });
-  assert.ok(veil.bottom >= 844 - 1, 'the veil stops short of the bottom of the screen');
-  assert.ok(veil.veilBottom < 0 && veil.veilTop < 0, 'the veil does not bleed past its box');
-  await page.evaluate(() => document.documentElement.style.removeProperty('--keyboard-inset'));
-  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
 
   // Scanning into the barcode field: the camera is denied here, so this drives
   // the manual fallback and checks the code lands back on the form.
@@ -199,6 +169,26 @@ try {
   await zeroMacro.click();
   await zeroMacro.pressSequentially('37');
   assert.equal(await zeroMacro.inputValue(), '37', 'zero macro should be replaced on first typing');
+  await tab('Hoy');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
+  // A virtual keyboard changes the visual viewport without resizing the page.
+  // Exercise both keyboard shrink and Safari's pan; a real iPhone is still needed.
+  for (const [height, offsetTop] of [[410, 0], [360, 80], [300, 30], [844, 0]]) {
+    await page.evaluate(({ height, offsetTop }) => {
+      Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: height });
+      Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: offsetTop });
+      window.visualViewport.dispatchEvent(new Event('resize'));
+    }, { height, offsetTop });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.locator('.modal-backdrop').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished)));
+    const bounds = await page.getByRole('dialog').boundingBox();
+    assert.ok(bounds.y >= offsetTop - 1 && bounds.y + bounds.height <= offsetTop + height + 1, 'sheet must fit the visible viewport');
+    assert.ok((await page.locator('.results').boundingBox()).height > 60, 'search results must retain usable space');
+    if (height === 360) await page.screenshot({ path: '/tmp/nutri-keyboard-open.png' });
+  }
+  await page.screenshot({ path: '/tmp/nutri-keyboard-review.png' });
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   assert.deepEqual(errors, []);
-  console.log('PASS: empty/negative/zero/decimal macros; zero replacement on focus; persisted zero; new profile; retained drafts on 503; unknown vs zero nutrients; invalid portions; retry without duplicate; offline sync; four tabs at four widths; a remote write reaching an open diary, and a remote delete leaving it; the search sheet filling a keyboard-sized viewport with no gap under it; the sheet riding on top of a keyboard inset while the veil still covers the screen and the surface carries on through it; scan into the barcode field; profile deletion locked behind the typed name; no uncaught errors.');
+  console.log('PASS: macro editing; retained drafts; invalid portions; offline sync; responsive tabs; live diary updates; search in reduced and offset visual viewports; barcode entry; protected profile deletion; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }

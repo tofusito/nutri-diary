@@ -109,13 +109,13 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 .food-macros{grid-column:1/-1;border-top:1px solid var(--line-soft);padding-top:9px;font-size:11px;color:var(--muted)}
 
 /* ---- modal / add sheet ---- */
-.modal-backdrop{position:fixed;inset:0;z-index:10;display:flex;align-items:end;justify-content:center;
-  padding-bottom:var(--keyboard-inset,0px)}
+.modal-backdrop{position:fixed;left:0;right:0;top:var(--sheet-top,0px);height:var(--sheet-height,100dvh);z-index:10;display:flex;align-items:end;justify-content:center;
+  padding-top:env(safe-area-inset-top);isolation:isolate}
 /* The veil bleeds well past its box: if a measurement is ever off, what shows
    is the veil and not the diary underneath. */
 .modal-backdrop::before{content:'';position:absolute;inset:-50vh 0;background:#000c;backdrop-filter:blur(3px)}
-.modal-backdrop::after{content:'';position:absolute;left:0;right:0;bottom:0;height:var(--keyboard-inset,0px);background:var(--surface)}
-.modal{position:relative;max-width:620px;width:100%;max-height:100%;overflow:auto;display:flex;flex-direction:column;background:var(--surface);
+.modal-backdrop::before{z-index:-1;pointer-events:none}
+.modal{position:relative;max-width:620px;width:100%;min-height:0;max-height:100%;overflow:auto;display:flex;flex-direction:column;background:var(--surface);
   box-shadow:inset 0 0 0 1px var(--line);border-radius:26px 26px 0 0;padding:18px 18px 26px}
 .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex:none}
 .modal>*{flex:none}
@@ -292,7 +292,7 @@ nav button.active svg{stroke-width:2}
 .profile-form section{background:var(--surface);border:1px solid var(--line-soft);border-radius:20px;padding:18px}
 .modal-backdrop{animation:veil-in .18s ease-out}
 .modal-backdrop::before{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-.modal{padding-bottom:max(10px,calc(24px + env(safe-area-inset-bottom) - var(--keyboard-inset,0px)));box-shadow:0 -20px 80px #0005,inset 0 1px 0 #ffffff19;animation:sheet-in .3s cubic-bezier(.22,1,.36,1);overscroll-behavior:contain}
+.modal{padding-bottom:max(16px,env(safe-area-inset-bottom));box-shadow:0 -20px 80px #0005,inset 0 1px 0 #ffffff19;animation:sheet-in .3s cubic-bezier(.22,1,.36,1);overscroll-behavior:contain}
 .modal::before{content:'';display:block;width:36px;height:4px;border-radius:3px;background:var(--line);margin:-6px auto 18px}
 .app-shell>main{animation:page-in .22s ease-out}
 .toast,.undo{bottom:calc(100px + env(safe-area-inset-bottom))}
@@ -305,7 +305,7 @@ input,select,textarea{scroll-margin-bottom:120px}
 }
 @media(hover:hover){button:not(:disabled):hover{filter:brightness(1.12)}}
 @media(max-width:480px){input,select,textarea,.macro-inputs input{font-size:16px}.total strong{font-size:18px}.total strong small{font-size:9px}.totals{gap:9px;padding:18px 13px}}
-@media(min-width:700px){.modal-backdrop{align-items:center;padding:24px 24px calc(24px + var(--keyboard-inset,0px))}.modal{border-radius:26px}.modal-tall{height:auto;max-height:100%}}
+@media(min-width:700px){.modal-backdrop{align-items:center;padding:24px}.modal{border-radius:26px}.modal-tall{height:auto;max-height:100%}}
 @keyframes page-in{from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
 @keyframes sheet-in{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:translateY(0)}}
 @keyframes veil-in{from{opacity:0}to{opacity:1}}
@@ -337,5 +337,18 @@ button.danger{background:#3a221f;color:#ffb3a7;box-shadow:inset 0 0 0 1px #5a312
 
 .modal-actions{display:flex;align-items:center;gap:10px}
 .modal-actions .chip{padding:7px 13px}
+
+/* One visible sheet, with the search field and confirmation kept reachable. */
+.modal-backdrop{padding-bottom:0}
+.modal{scroll-padding-block:16px}
+.modal input,.modal select,.modal textarea{font-size:16px}
+.modal .quantity-row input{font-size:21px}
+.modal header{position:sticky;top:-18px;z-index:2;background:var(--surface);padding-block:8px}
+.modal .form-actions{position:sticky;bottom:-10px;z-index:2;background:var(--surface);padding-block:12px;margin-top:12px}
+.keyboard-open .modal{padding-bottom:10px;animation:none}
+.keyboard-open .modal::before{display:none}
+.keyboard-open .modal header{margin-bottom:8px}
+.keyboard-open .modal-backdrop{padding-top:0}
+@media(min-width:700px){.modal-backdrop{padding:24px}.modal-tall{height:min(760px,100%)}}
 
 .build{font-family:var(--mono);font-size:10px;color:var(--faint);margin:14px 0 0}
