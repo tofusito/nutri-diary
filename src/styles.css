@@ -311,3 +311,12 @@ button.danger{background:#3a221f;color:#ffb3a7;box-shadow:inset 0 0 0 1px #5a312
 .edit-move{margin-top:12px}
 .plan-list{list-style:none;margin:12px 0 0;padding:0;max-height:34vh;overflow:auto;display:grid;gap:6px}
 .plan-list li{background:var(--surface);box-shadow:inset 0 0 0 1px var(--line-soft);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--muted)}
+
+.account-actions{display:flex;gap:8px;margin:4px 0 12px}
+.icon-action{display:flex;flex-direction:column;align-items:center;gap:5px;background:var(--raised);color:var(--muted);
+  box-shadow:inset 0 0 0 1px var(--line);border-radius:14px;padding:11px 16px;font-size:11px;font-weight:700}
+.icon-action svg{width:19px;height:19px;display:block}
+.icon-action.danger{color:#c99a92}
+.icon-action.danger:hover,.icon-action.danger[aria-expanded=true]{color:var(--over);box-shadow:inset 0 0 0 1px #5a3129}
+.danger-panel input{width:100%;background:#201917;border:1px solid #5a3129;border-radius:10px;padding:10px;color:var(--text)}
+.danger-panel b{color:#ffb3a7}

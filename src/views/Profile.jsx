@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { estimateEnergy, macroCalories, number, selectZero } from '../lib/nutrition.js'
+import Icon from '../components/Icon.jsx'
 
 const activities = [[1.2, 'Sedentario', 'poco o nada de ejercicio'], [1.375, 'Ligera', '1-3 días por semana'], [1.55, 'Moderada', '3-5 días por semana'], [1.725, 'Alta', '6-7 días por semana'], [1.9, 'Muy alta', 'trabajo físico o doble sesión']]
 const blank = name => ({ id: crypto.randomUUID(), name, carbs: 0, protein: 0, fat: 0, sex: 'male', activity: 1.55 })
@@ -10,7 +11,9 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
   const [message, setMessage] = useState('')
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
-  useEffect(() => { setDraft(active); setCreating(false); setMessage('') }, [active.id])
+  const [asking, setAsking] = useState('')
+  const [typed, setTyped] = useState('')
+  useEffect(() => { setDraft(active); setCreating(false); setMessage(''); setAsking(''); setTyped('') }, [active.id])
 
   const set = (key, value) => setDraft(previous => ({ ...previous, [key]: number(value) }))
   const validMacros = ['carbs', 'protein', 'fat'].every(key => Number.isFinite(draft[key]) && draft[key] >= 0)
@@ -33,10 +36,14 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
     setDraft(previous => ({ ...previous, carbs: Math.round(kcalTarget * 0.4 / 4), protein: Math.round(kcalTarget * 0.3 / 4), fat: Math.round(kcalTarget * 0.3 / 9) }))
     setMessage('Reparto 40/30/30 sobre tu mantenimiento. Revísalo y guarda.')
   }
+  // Deleting a profile takes its whole diary with it and cannot be undone, so
+  // it asks for the name rather than settling for a second tap.
   const remove = async () => {
-    if (!confirm(`¿Eliminar el perfil «${active.name}» y todo su diario?`)) return
-    try { await onDelete(active.id) } catch (error) { setMessage(error.message) }
+    if (typed.trim() !== active.name) return
+    setSaving(true)
+    try { await onDelete(active.id) } catch (error) { setMessage(error.message); setSaving(false); setAsking('') }
   }
+  const close = () => { setAsking(''); setTyped('') }
 
   return <main>
     <div className="page-heading"><div><p className="eyebrow">PERFIL</p><h1>{creating ? 'Nuevo perfil' : active.name || 'Tu perfil'}</h1></div>
@@ -82,10 +89,27 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
 
     <section className="account">
       <h2>Cuenta</h2>
-      <button className="secondary full" onClick={onSwitch}>Cambiar de perfil</button>
-      <p className="muted">Vuelve a la pantalla de selección, por si has entrado con el perfil equivocado.</p>
-      {!creating && profiles.length > 1 && <button className="link-button" onClick={remove}>Eliminar «{active.name}» y su diario</button>}
-      <button className="link-button" onClick={onLogout}>Cerrar sesión</button>
+      <div className="account-actions">
+        <button type="button" className="icon-action" onClick={() => { setTyped(''); setAsking(asking === 'switch' ? '' : 'switch') }}
+          aria-expanded={asking === 'switch'} aria-label="Cambiar de perfil"><Icon name="swap" /><span>Cambiar</span></button>
+        {!creating && profiles.length > 1 && <button type="button" className="icon-action danger" onClick={() => { setTyped(''); setAsking(asking === 'delete' ? '' : 'delete') }}
+          aria-expanded={asking === 'delete'} aria-label={`Eliminar el perfil ${active.name}`}><Icon name="trash" /><span>Eliminar</span></button>}
+      </div>
+
+      {asking === 'switch' && <div className="confirm-row">
+        <span>¿Volver a la pantalla de selección de perfil? No se pierde nada.</span>
+        <button type="button" className="secondary" onClick={close}>No</button>
+        <button type="button" onClick={onSwitch}>Sí, cambiar</button>
+      </div>}
+
+      {asking === 'delete' && <div className="confirm-row danger-panel">
+        <span>Esto borra <b>{active.name}</b> y todo su diario, sin vuelta atrás. Escribe <b>{active.name}</b> para confirmarlo.</span>
+        <input value={typed} onChange={event => setTyped(event.target.value)} aria-label={`Escribe ${active.name} para confirmar`} placeholder={active.name} autoComplete="off" />
+        <button type="button" className="secondary" onClick={close}>Cancelar</button>
+        <button type="button" className="danger" disabled={saving || typed.trim() !== active.name} onClick={remove}>{saving ? 'Eliminando…' : 'Eliminar'}</button>
+      </div>}
+
+      <button type="button" className="link-button" onClick={onLogout}>Cerrar sesión</button>
     </section>
   </main>
 }
