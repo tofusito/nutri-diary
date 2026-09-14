@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/noodle-512.png" width="128" alt="">
+<img src="public/noodle-512.png" width="128" alt="Nutri app icon: a cream noodle bowl on a vivid red background">
 
 # Nutri
 
@@ -9,6 +9,8 @@
 Log the meal, see what is left. No coaching, no streaks, no subscription.
 
 </div>
+
+Nutri's visual identity is built around a warm cream bowl, golden noodles and charcoal chopsticks on a vivid vermilion-red field. The same mark is used as the repository artwork, browser favicon, Apple touch icon and installable PWA icon, so the app is recognisable on the Home Screen at a glance.
 
 <table>
 <tr>
@@ -30,6 +32,16 @@ Carbohydrates, protein and fat in grams. Energy is always `4 × carbs + 4 × pro
 The home screen is a single day split into five named meals — Desayuno, Comida, Merienda, Cena, Snacks — because nobody remembers what time they ate. The totals sit on top: what you have eaten against your goal, and underneath the difference. **`−N` in green** while there is room left, **`+N` in red** once you are past it. What is unknown reads `—`, never zero.
 
 Each macro keeps one colour everywhere: hidratos amber, proteínas blue, grasas pink. You read a number without hunting for its label.
+
+### Visual identity
+
+The app icon is intentionally simple and high-contrast: a full-bleed red rounded-square background carries the cream bowl as the focal point, with golden noodles and dark chopsticks providing the small-size detail. Keep the red bowl variant when regenerating the PWA assets:
+
+```sh
+npm run icons
+```
+
+That command derives the 180, 192 and 512 pixel install assets from `public/noodle-master.png`, including the shadowed versions used by the manifest and iOS home-screen metadata. The dark interface remains the app canvas; the red icon is its warm visual accent.
 
 ### Adding food
 
