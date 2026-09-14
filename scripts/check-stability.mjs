@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { chromium } from '@playwright/test';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { MongoClient } from 'mongodb';
@@ -43,6 +44,7 @@ try {
   assert.equal(await page.getByLabel('Nombre', { exact: true }).inputValue(), '');
   await tab('Alimentos'); await page.getByRole('button', { name: '+ Nuevo', exact: true }).click();
   await page.getByLabel('Nombre', { exact: true }).fill('Test stability');
+  await page.getByLabel('kcal', { exact: true }).fill('100');
   await page.getByLabel('Proteínas', { exact: true }).fill('0');
   await page.route('**/api/foods', async route => route.request().method() === 'POST' ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Fallo simulado"}' }) : route.continue());
   await page.getByRole('button', { name: 'Guardar alimento', exact: true }).click();
@@ -52,6 +54,11 @@ try {
   await page.getByRole('button', { name: 'Guardar alimento', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   const [food] = await request('/api/foods'); assert.equal(food.nutrients.protein, 0); assert.equal(food.nutrients.fat, null);
+  await request('/api/foods', 'POST', { id: randomUUID(), name: 'No kcal stability', basis: 'g', nutrients: { kcal: null, carbs: null, protein: 2, fat: null } });
+  await page.reload(); await page.getByRole('navigation').waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: /No kcal stability/ }).count(), 0);
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   await tab('Hoy'); await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
   await page.getByRole('button').filter({ hasText: 'Test stability' }).click();
   await page.getByLabel('Cantidad', { exact: true }).fill('0');

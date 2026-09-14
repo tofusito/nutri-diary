@@ -7,6 +7,8 @@ import Scanner from './Scanner.jsx'
 import FoodForm from './FoodForm.jsx'
 
 const sameFood = (a, b) => a.barcode && b.barcode ? a.barcode === b.barcode && a.name === b.name : a.name === b.name && (a.brand || '') === (b.brand || '')
+const hasKcal = food => Number.isFinite(food?.nutrients?.kcal)
+const searchableText = food => [food.name, food.brand || '', food.barcode || ''].join(' ').toLowerCase()
 
 /** Search sheet used to log a food: always looks in the personal catalog first,
  *  then in Open Food Facts. A barcode can belong to several products, so every
@@ -30,8 +32,9 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   const local = useMemo(() => {
     const needle = query.trim().toLowerCase()
     const byFavorite = (a, b) => Number(Boolean(b.favorite)) - Number(Boolean(a.favorite))
-    if (!needle) return [...foods].sort(byFavorite).slice(0, 12)
-    return foods.filter(food => `${food.name} ${food.brand || ''} ${food.barcode || ''}`.toLowerCase().includes(needle)).sort(byFavorite).slice(0, 25)
+    const usable = foods.filter(hasKcal)
+    if (!needle) return [...usable].sort(byFavorite).slice(0, 12)
+    return usable.filter(food => searchableText(food).includes(needle)).sort(byFavorite).slice(0, 25)
   }, [foods, query])
 
   useEffect(() => {
@@ -83,9 +86,9 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
 
   const mine = useMemo(() => {
     const seen = new Set(local.map(food => food.id))
-    return [...local, ...(result.mine || []).filter(food => !seen.has(food.id))]
+    return [...local, ...(result.mine || []).filter(food => hasKcal(food) && !seen.has(food.id))]
   }, [local, result])
-  const external = useMemo(() => (result.external || []).filter(item => !mine.some(food => sameFood(food, item))), [result, mine])
+  const external = useMemo(() => (result.external || []).filter(item => hasKcal(item) && !mine.some(food => sameFood(food, item))), [result, mine])
 
   if (creating) return <Modal title="Nuevo alimento" onClose={() => setCreating(null)}>
     <FoodForm initial={creating} onCancel={() => setCreating(null)} onSave={async food => {
@@ -149,7 +152,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
       <h3>Tuyos <small>{mine.length}</small></h3>
       {mine.length ? mine.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} />) : <p className="empty">Nada en tu biblioteca todavía.</p>}
       <h3>Open Food Facts <small>{external.length}</small></h3>
-      {external.length ? external.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} external />) : <p className="empty">{query.trim().length < 2 ? 'Escribe para buscar en la base pública.' : loading ? '…' : result.external?.length ? 'Lo público que hay aquí ya está en tu biblioteca.' : 'Sin resultados públicos.'}</p>}
+      {external.length ? external.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} external />) : <p className="empty">{query.trim().length < 2 ? 'Escribe para buscar en la base pública.' : loading ? '…' : result.external?.some(item => hasKcal(item)) ? 'Lo público que hay aquí ya está en tu biblioteca.' : result.external?.length ? 'Hay resultados sin kcal declaradas; no se muestran.' : 'Sin resultados públicos.'}</p>}
     </div>
     <button className={`full ${mine.length || external.length ? 'secondary' : ''}`} onClick={() => setCreating({ ...emptyFood(), name: query.trim().length > 2 && !barcode ? query.trim() : '', barcode })}>
       {barcode && !mine.length && !external.length ? `Crear el ${barcode} a mano` : 'Crear alimento a mano'}
