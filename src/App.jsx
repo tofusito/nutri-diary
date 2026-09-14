@@ -6,6 +6,7 @@ import Foods from './views/Foods.jsx'
 import Progress from './views/Progress.jsx'
 import Profile from './views/Profile.jsx'
 import ChooseProfile from './views/ChooseProfile.jsx'
+import Icon from './components/Icon.jsx'
 
 const PROFILE_KEY = 'nutri-profile'
 
@@ -133,7 +134,7 @@ export default function App() {
     {view}
     {undo && <div className="undo">Entrada eliminada <button onClick={restore}>Deshacer</button><button onClick={() => setUndo(null)}>×</button></div>}
     <nav>{['Hoy', 'Alimentos', 'Progreso', 'Perfil'].map(item =>
-      <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>
-        <span>{({ Hoy: '◉', Alimentos: '⌕', Progreso: '⌁', Perfil: '○' })[item]}</span>{item}</button>)}</nav>
+      <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)} aria-current={tab === item ? 'page' : undefined}>
+        <Icon name={item.toLowerCase()} />{item}</button>)}</nav>
   </div>
 }

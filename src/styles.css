@@ -236,9 +236,11 @@ h1,h2,h3{margin:0}
 nav{position:fixed;bottom:0;left:0;right:0;background:#11150fe8;border-top:1px solid var(--line-soft);
   backdrop-filter:blur(18px);display:flex;justify-content:center;
   padding:9px max(14px,calc((100% - 620px)/2)) calc(9px + env(safe-area-inset-bottom));z-index:5}
-nav button{background:transparent;color:var(--faint);flex:1;padding:5px 4px;font-size:10px;font-weight:700;border-radius:12px}
-nav button.active{color:var(--kcal);background:#1d2419}
-nav span{display:block;font-size:18px;line-height:21px}
+nav button{background:transparent;color:var(--faint);flex:1;padding:7px 4px 6px;font-size:10px;font-weight:700;
+  border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:color .15s,background .15s}
+nav button.active{color:var(--kcal);background:#1c2318}
+nav svg{width:23px;height:23px;display:block}
+nav button.active svg{stroke-width:2}
 
 .login{min-height:100vh;padding-top:24vh;max-width:480px}
 .login h1{font-size:42px}
