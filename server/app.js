@@ -387,17 +387,23 @@ export function createApp(databaseOrClient, options = {}) {
       })(),
     ]);
     if (attempts.every((attempt) => attempt.status === 'rejected')) throw attempts[0].reason;
-    const seen = new Set();
-    const result = [];
+    // The two sources spell brands differently for the same product, so within
+    // one barcode the product name is the identity. Genuinely different
+    // products sharing a code carry different names, which is the case worth
+    // showing. Duplicates merge so the richer brand and image survive.
+    const byName = new Map();
     for (const attempt of attempts) {
       if (attempt.status !== 'fulfilled') continue;
       for (const food of attempt.value) {
-        const key = `${food.name}|${food.brand || ''}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        result.push({ ...food, barcode: food.barcode || barcode });
+        const key = food.name.toLocaleLowerCase('es').replace(/\s+/g, ' ').trim();
+        const current = byName.get(key);
+        if (!current) { byName.set(key, { ...food, barcode: food.barcode || barcode }); continue; }
+        if ((food.brand || '').length > (current.brand || '').length) current.brand = food.brand;
+        current.image = current.image || food.image;
+        current.quantityText = current.quantityText || food.quantityText;
       }
     }
+    const result = [...byName.values()];
     // An unknown barcode may be added upstream any day, so remember it briefly only.
     const ttl = result.length ? OFF_CACHE_MS : OFF_MISS_CACHE_MS;
     await lookupCache.updateOne({ barcode }, { $set: { barcode, foods: result, expiresAt: new Date(Date.now() + ttl) } }, { upsert: true });
