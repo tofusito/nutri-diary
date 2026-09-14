@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { api } from '../lib/api.js'
 import { emptyFood, number, selectZero } from '../lib/nutrition.js'
 import { recognizeLabel } from '../lib/ocr.js'
 import QrCode from './QrCode.jsx'
@@ -6,6 +7,7 @@ import Icon from './Icon.jsx'
 import Scanner from './Scanner.jsx'
 
 const fields = [['kcal', 'kcal'], ['carbs', 'Hidratos'], ['protein', 'Proteínas'], ['fat', 'Grasas']]
+const confidenceText = { high: 'alta', medium: 'media', low: 'baja' }
 
 /** Minimal by default: name, barcode and the four values per 100 g/ml. Brand,
  *  portion, favorite, label OCR and the private QR stay behind "Más opciones".
@@ -18,6 +20,10 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
   const [confirming, setConfirming] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState('')
+  const [aiQuery, setAiQuery] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiResult, setAiResult] = useState(null)
   const set = (key, value) => setFood(previous => ({ ...previous, [key]: value }))
   const nutrient = (key, value) => setFood(previous => ({ ...previous, nutrients: { ...previous.nutrients, [key]: number(value) } }))
   const scanLabel = async file => {
@@ -35,10 +41,44 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
     catch (err) { setError(err.message || 'No se pudo guardar. Inténtalo otra vez.') }
     finally { setSaving(false) }
   }
+  const fillWithAi = async () => {
+    const query = aiQuery.trim()
+    if (query.length < 2 || aiLoading || saving || loading) return
+    setAiLoading(true); setAiError(''); setError('')
+    try {
+      const result = await api('/api/foods/ai', { method: 'POST', body: JSON.stringify({ query, barcode: food.barcode || '', basis: food.basis }) })
+      const proposed = result.food
+      setFood(previous => ({
+        ...previous,
+        name: proposed.name || previous.name,
+        brand: proposed.brand || previous.brand || '',
+        barcode: previous.barcode || proposed.barcode || '',
+        basis: proposed.basis || previous.basis,
+        nutrients: proposed.nutrients,
+        servingSize: proposed.servingSize ?? previous.servingSize ?? '',
+        source: proposed.source,
+        ai: proposed.ai,
+      }))
+      setAiResult(result)
+    } catch (err) { setAiError(err.message) } finally { setAiLoading(false) }
+  }
   const unit = food.basis === 'ml' ? 'ml' : 'g'
 
   return <>
   <form className="form" onSubmit={submit}>
+    <section className="ai-assistant" aria-labelledby="food-ai-title">
+      <div className="ai-assistant-head"><div><p className="eyebrow">ASISTENTE</p><h3 id="food-ai-title">Rellenar con IA</h3></div><span className="ai-badge">WEB</span></div>
+      <label>Qué alimento o producto buscas<input value={aiQuery} onChange={event => setAiQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); fillWithAi() } }} placeholder="Ej. Yogur griego Hacendado natural 0%" enterKeyHint="search" autoComplete="off" /></label>
+      <button type="button" className="secondary ai-action" onClick={fillWithAi} disabled={aiQuery.trim().length < 2 || aiLoading || saving || loading}>{aiLoading ? 'Buscando y rellenando…' : 'Buscar y rellenar'}</button>
+      <p className="muted">Consulta fuentes públicas y propone valores por 100 {unit}. Revísalos antes de guardar.</p>
+      {aiError && <p className="error" role="alert">{aiError}</p>}
+      {aiResult && <div className="ai-result" role="status" aria-live="polite">
+        <div className="ai-result-head"><strong>Propuesta rellenada</strong><span className={`ai-confidence confidence-${aiResult.confidence}`}>Confianza {confidenceText[aiResult.confidence] || 'no indicada'}</span></div>
+        {aiResult.notes && <p className="muted">{aiResult.notes}</p>}
+        {aiResult.sources?.length > 0 && <div><small className="ai-sources-label">Fuentes consultadas</small><ul className="ai-sources">{aiResult.sources.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a></li>)}</ul></div>}
+        <small className="muted">La propuesta queda editable. Guarda solo cuando te cuadre con la etiqueta.</small>
+      </div>}
+    </section>
     <label>Nombre<input required value={food.name} onChange={event => set('name', event.target.value)} placeholder="Ej. Yogur griego natural" /></label>
     <label>Código de barras<span className="scan-field">
       <input inputMode="numeric" value={food.barcode || ''} onChange={event => set('barcode', event.target.value)} placeholder="Escanéalo o escríbelo" />

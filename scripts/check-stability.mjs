@@ -61,9 +61,20 @@ try {
     Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: 0 });
     window.visualViewport.dispatchEvent(new Event('resize'));
   });
+  await page.getByLabel('Qué alimento o producto buscas', { exact: true }).fill('Yogur griego de prueba');
+  await page.route('**/api/foods/ai', async route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    food: { name: 'Yogur griego de prueba', brand: 'Marca de prueba', barcode: '', basis: 'g', nutrients: { kcal: 97, carbs: 4, protein: 9, fat: 5 }, servingSize: 125, source: 'openai-web', ai: { model: 'gpt-5.6-luna', confidence: 'medium', query: 'Yogur griego de prueba', sources: [{ title: 'Fuente de prueba', url: 'https://example.com/nutrition' }], generatedAt: new Date().toISOString() } }, confidence: 'medium', notes: 'Propuesta de prueba.', sources: [{ title: 'Fuente de prueba', url: 'https://example.com/nutrition' }], model: 'gpt-5.6-luna',
+  }) }));
+  await page.getByRole('button', { name: 'Buscar y rellenar', exact: true }).click();
+  await page.getByText('Propuesta rellenada', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Nombre', { exact: true }).inputValue(), 'Yogur griego de prueba');
+  assert.equal(await page.getByLabel('kcal', { exact: true }).inputValue(), '97');
+  await page.unroute('**/api/foods/ai');
   await page.getByLabel('Nombre', { exact: true }).fill('Test stability');
   await page.getByLabel('kcal', { exact: true }).fill('100');
+  await page.getByLabel('Hidratos', { exact: true }).fill('');
   await page.getByLabel('Proteínas', { exact: true }).fill('0');
+  await page.getByLabel('Grasas', { exact: true }).fill('');
   await page.route('**/api/foods', async route => route.request().method() === 'POST' ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Fallo simulado"}' }) : route.continue());
   await page.getByRole('button', { name: 'Guardar alimento', exact: true }).click();
   await page.getByRole('alert').filter({ hasText: 'Fallo simulado' }).waitFor();

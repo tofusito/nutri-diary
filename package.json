@@ -17,15 +17,16 @@
     "@zxing/browser": "^0.1.5",
     "express": "^5.2.1",
     "mongodb": "^7.6.0",
+    "openai": "^7.15.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "tesseract.js": "^7.0.0",
-    "qrcode": "^1.5.4"
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
-    "vite": "^8.3.0",
-    "@vitejs/plugin-react": "latest",
     "@playwright/test": "latest",
-    "mongodb-memory-server": "latest"
+    "@vitejs/plugin-react": "latest",
+    "mongodb-memory-server": "latest",
+    "vite": "^8.3.0"
   }
 }

@@ -7,6 +7,7 @@ import {
   sumNutrients,
   validDate,
 } from '../shared/nutrition.js';
+import { createFoodAi, FoodAiError, normalizeFoodAiRequest } from './food-ai.js';
 
 const MEALS = new Set(['Desayuno', 'Comida', 'Merienda', 'Cena', 'Snacks']);
 const MEAL_ORDER = ['Desayuno', 'Comida', 'Merienda', 'Cena', 'Snacks'];
@@ -67,6 +68,22 @@ function normalizeNutrients(value) {
   return { kcal: value.kcal, carbs: value.carbs, protein: value.protein, fat: value.fat };
 }
 
+function normalizeAiMetadata(value) {
+  if (value === undefined || value === null) return undefined;
+  assert(isObject(value), 'Metadatos de IA inválidos.');
+  assert(typeof value.model === 'string' && value.model.length > 0 && value.model.length <= 80, 'Modelo de IA inválido.');
+  assert(['high', 'medium', 'low'].includes(value.confidence), 'Confianza de IA inválida.');
+  assert(typeof value.query === 'string' && value.query.length > 0 && value.query.length <= 180, 'Consulta de IA inválida.');
+  assert(typeof value.generatedAt === 'string' && value.generatedAt.length <= 40, 'Fecha de IA inválida.');
+  assert(Array.isArray(value.sources) && value.sources.length <= 6, 'Fuentes de IA inválidas.');
+  const sources = value.sources.map(source => {
+    assert(isObject(source) && typeof source.title === 'string' && source.title.length <= 160, 'Título de fuente inválido.');
+    assert(typeof source.url === 'string' && /^https:\/\//.test(source.url) && source.url.length <= 500, 'URL de fuente inválida.');
+    return { title: source.title, url: source.url };
+  });
+  return { model: value.model, confidence: value.confidence, query: value.query, sources, generatedAt: value.generatedAt };
+}
+
 function normalizeFood(value, { requireId = false } = {}) {
   assert(isObject(value), 'Alimento inválido.');
   if (requireId) assert(isUuid(value.id), 'El id del alimento debe ser un UUID.');
@@ -87,6 +104,7 @@ function normalizeFood(value, { requireId = false } = {}) {
     basisUncertain: value.basisUncertain === true || undefined,
     source: typeof value.source === 'string' ? value.source : undefined,
     sourceId: typeof value.sourceId === 'string' ? value.sourceId : undefined,
+    ai: normalizeAiMetadata(value.ai),
     recipe: isObject(value.recipe) ? clone(value.recipe) : undefined,
     quantityText: typeof value.quantityText === 'string' ? value.quantityText.slice(0, 60) : undefined,
     image: typeof value.image === 'string' && /^https:\/\//.test(value.image) ? value.image.slice(0, 500) : undefined,
@@ -200,6 +218,7 @@ export function createApp(databaseOrClient, options = {}) {
   const sessionSecret = env.SESSION_SECRET || crypto.randomBytes(32).toString('base64url');
   const configuredOrigin = env.APP_ORIGIN?.replace(/\/$/, '');
   const offUserAgent = env.OFF_USER_AGENT || 'nutri-diary/0.1 (personal diary)';
+  const foodAi = createFoodAi({ apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL, client: options.openaiClient });
   const offQueues = {
     search: { last: 0, chain: Promise.resolve(), interval: OFF_SEARCH_INTERVAL_MS },
     product: { last: 0, chain: Promise.resolve(), interval: OFF_PRODUCT_INTERVAL_MS },
@@ -309,6 +328,16 @@ export function createApp(databaseOrClient, options = {}) {
     res.json({ ok: true });
   });
   app.use('/api', requireSameOrigin, requireAuth);
+
+  app.post('/api/foods/ai', async (req, res, next) => {
+    try {
+      const request = normalizeFoodAiRequest(req.body);
+      res.json(await foodAi.enrich(request));
+    } catch (error) {
+      if (error instanceof FoodAiError) return next(new ApiError(error.status, error.message));
+      return next(error);
+    }
+  });
 
   /** Profiles. One diary per person; the food catalog is shared between them. */
   let bootstrapping = null;

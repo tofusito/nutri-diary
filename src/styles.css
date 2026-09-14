@@ -174,6 +174,21 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 
 /* ---- forms ---- */
 .form{display:grid;gap:13px}
+.ai-assistant{display:grid;gap:10px;background:linear-gradient(145deg,#292537,#202127 72%);border:1px solid #51486d;border-radius:18px;padding:14px}
+.ai-assistant-head{display:flex;align-items:start;justify-content:space-between;gap:12px}
+.ai-assistant-head h3{font-size:15px;letter-spacing:-.3px;margin-top:3px}
+.ai-badge{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--kcal);background:#c6b6ff14;border:1px solid #c6b6ff33;border-radius:999px;padding:5px 8px}
+.ai-action{justify-self:start}
+.ai-result{display:grid;gap:8px;background:#17181d99;border:1px solid var(--line);border-radius:13px;padding:11px}
+.ai-result-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ai-result-head strong{font-size:12px}
+.ai-confidence{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.confidence-high{color:var(--protein)}
+.confidence-medium{color:var(--carbs)}
+.confidence-low{color:var(--over)}
+.ai-sources-label{font-size:10px;color:var(--muted);font-weight:700}
+.ai-sources{display:grid;gap:4px;margin:5px 0 0;padding-left:17px}
+.ai-sources a{display:block;max-width:100%;overflow:hidden;color:var(--kcal);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
 .form label{display:grid;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
 .form fieldset{border:1px solid var(--line);border-radius:14px;padding:13px;margin:0}
 .form legend{font-size:11px;color:var(--muted);padding:0 5px}

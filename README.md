@@ -39,6 +39,8 @@ A barcode is not a unique key in real life — shops reuse them — so a scan li
 
 Pick a public result and it is copied into your catalogue, so next time it is already yours.
 
+An optional `Rellenar con IA` action can search the web and propose a food name, brand and nutrients. It runs on the server with OpenAI's Responses API, GPT-5.6 Luna and the web search tool; the API key never reaches the browser. The proposal is editable and sources are shown before you save it. Nutrition values remain a suggestion to check against the label, especially for branded products.
+
 ### Two people, one kitchen
 
 Each profile keeps its own goals, diary and history, and both share one food catalogue. You choose who you are once after signing in and the device remembers.
@@ -91,6 +93,8 @@ State lives where `MONGO_DATA_PATH` and `BACKUP_PATH` say, `./data/...` by defau
 
 A tunnel gives you transport, not identity. Put [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/) in front and set `AUTH_MODE=cloudflare`; add `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` and the origin verifies the assertion Access attaches to every allowed request, so a policy that gets removed becomes a 403 instead of an open diary. The audience tag is the `kid` parameter of the Access login redirect for your hostname. Keep the API uncached at the edge; never add a Cache Everything rule to it.
 
+To enable the optional food assistant, set `OPENAI_API_KEY` in the server environment. `OPENAI_MODEL` defaults to `gpt-5.6-luna`. Keep both values out of the repository and browser; leave the key empty to keep the rest of the diary working without the assistant.
+
 On the phone: open the HTTPS site and Add to Home Screen. Barcode scanning needs camera permission and a secure context, so it works over the tunnel and on `localhost` and nowhere else — not over plain HTTP on a LAN address. The scanner says so and offers a field for typing the code by hand.
 
 ## How it is built
@@ -99,7 +103,7 @@ A React PWA, an Express API and one MongoDB instance with two databases. `nutrit
 
 Open Food Facts data is community-maintained and sometimes incomplete, which is why missing values stay missing. Text search goes through `search.openfoodfacts.org`; a barcode is asked of the search index and the product endpoint at once, so one of them being rate limited does not look like an outage. Product reads and searches keep separate rate-limit queues, and attribution stays in the interface.
 
-Label OCR runs in the browser and its fields are suggestions to confirm, not readings to trust. Photos are never stored as diary records. This reads labels; it does not estimate calories from a photo of your plate.
+Label OCR runs in the browser and its fields are suggestions to confirm, not readings to trust. The optional food assistant uses web search and structured JSON to propose data, but its sources and values still need checking against the package. Photos are never stored as diary records. This reads labels; it does not estimate calories from a photo of your plate.
 
 An optional Mifflin–St Jeor calculator estimates resting energy and, with an activity factor, maintenance. It dates from 1990, it is not adaptive, and it never moves your goal on its own: there is a button to copy a 40/30/30 split out of it, and that is as far as it goes.
 

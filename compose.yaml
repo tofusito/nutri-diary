@@ -19,6 +19,8 @@ services:
       CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:-}
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
       OFF_USER_AGENT: ${OFF_USER_AGENT:-NutriDiary/0.1 (personal nutrition diary)}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
       # The application opens the nutrition_catalog and nutrition_tracking
       # databases over this connection; the user authenticates against admin.
       MONGODB_URI: mongodb://${MONGO_APP_USERNAME}:${MONGO_APP_PASSWORD}@nutri-diary-mongo:27017/?authSource=admin
