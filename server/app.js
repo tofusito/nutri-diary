@@ -373,14 +373,21 @@ export function createApp(databaseOrClient, options = {}) {
     await lookupCache.updateOne({ barcode }, { $set: { barcode, foods: result, expiresAt: new Date(Date.now() + ttl) } }, { upsert: true });
     return result;
   }
+  /** Text search goes through search.openfoodfacts.org: the legacy cgi/search.pl
+   *  answers 503 to server-to-server traffic. Its hits spell some fields
+   *  differently, so they are normalised before reusing the product mapper. */
   async function offBySearch(query) {
     const cacheKey = query.toLocaleLowerCase('es');
     const cached = await searchCache.findOne({ cacheKey, expiresAt: { $gt: new Date() } }, { projection: { _id: 0, foods: 1 } });
     if (cached?.foods) return cached.foods;
-    const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
-    url.search = new URLSearchParams({ search_terms: query, search_simple: '1', action: 'process', json: '1', page_size: '20' });
+    const url = new URL('https://search.openfoodfacts.org/search');
+    url.search = new URLSearchParams({ q: query, page_size: '20' });
     const payload = await offFetch(url);
-    const result = (payload?.products || []).map(fromOff);
+    const result = (payload?.hits || []).map((hit) => fromOff({
+      ...hit,
+      brands: Array.isArray(hit.brands) ? hit.brands.join(', ') : hit.brands,
+      quantity: Array.isArray(hit.quantity) ? hit.quantity[0] : hit.quantity,
+    }));
     await searchCache.updateOne({ cacheKey }, { $set: { cacheKey, foods: result, expiresAt: new Date(Date.now() + OFF_CACHE_MS) } }, { upsert: true });
     return result;
   }
