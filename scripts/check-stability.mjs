@@ -176,6 +176,12 @@ try {
   const quick = page.getByRole('button', { name: /Añadir Test stability, 80 g/ });
   await quick.click();
   await page.getByRole('status').filter({ hasText: 'Test stability añadido · 80 g' }).waitFor();
+  await searchField.click();
+  assert.equal(await searchField.evaluate(element => document.activeElement === element), true, 'search should focus only after tapping it');
+  await searchField.fill('Test');
+  await page.getByRole('heading', { name: /^Tuyos/ }).waitFor();
+  assert.equal(await page.getByRole('heading', { name: 'Tus habituales de desayuno', exact: true }).count(), 0, 'search should replace the habitual list');
+  await searchField.fill('');
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   await tab('Perfil');
 

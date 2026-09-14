@@ -1,4 +1,4 @@
-const CACHE = 'nutri-shell-v7';
+const CACHE = 'nutri-shell-v8';
 const SHELL = ['/', '/manifest.webmanifest', '/noodle-shadow-180.png', '/noodle-shadow-192.png', '/noodle-shadow-512.png'];
 
 // Without skipWaiting a new worker stays parked until every window closes. A
