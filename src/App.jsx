@@ -138,9 +138,9 @@ export default function App() {
   }
   /** One dish cooked for the household: the same food goes into every chosen
    *  diary on the same day, each with its own amount. */
-  const addForProfiles = async ({ food, meal, targets, entryIds = {} }) => {
+  const addForProfiles = async ({ food, meal, date: entryDate = date, targets, entryIds = {} }) => {
     for (const target of targets) {
-      const entry = { id: entryIds[target.id] || crypto.randomUUID(), date, meal, food, quantity: target.quantity }
+      const entry = { id: entryIds[target.id] || crypto.randomUUID(), date: entryDate, meal, food, quantity: target.quantity }
       if (target.id === profile?.id) { await add(entry); continue }
       try { await api(`/api/entries?profile=${target.id}`, { method: 'POST', body: JSON.stringify({ ...entry, profileId: target.id }) }) }
       catch (err) { throw new Error(`No se ha podido añadir a ${profiles.find(item => item.id === target.id)?.name || 'el otro perfil'}: ${err.message}. Revisa los diarios antes de repetir: las personas anteriores pueden haberse guardado.`) }

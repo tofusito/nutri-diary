@@ -183,7 +183,7 @@ try {
 
   // Deleting a profile only appears once a second one exists, so it can never
   // remove the last diary.
-  await request('/api/profiles', 'POST', { name: 'Segundo perfil', carbs: 10, protein: 10, fat: 10 });
+  const second = await request('/api/profiles', 'POST', { name: 'Segundo perfil', carbs: 10, protein: 10, fat: 10 });
   await page.reload(); await page.getByRole('navigation').waitFor({ state: 'visible' });
   await tab('Perfil');
 
@@ -196,6 +196,25 @@ try {
   await page.locator('.danger-panel input').fill((await request('/api/profiles'))[0].name);
   assert.ok(await confirmDelete.isEnabled(), 'delete stayed locked with the exact name');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+
+  // A forgotten shared serving can be added while editing the original entry.
+  // Reopening it must make the already-shared state obvious and non-repeatable.
+  await tab('Hoy');
+  await page.locator('.entry').filter({ hasText: '80 g' }).getByRole('button').first().click();
+  const share = page.getByRole('checkbox', { name: 'Segundo perfil', exact: true });
+  await share.waitFor();
+  await share.check();
+  await page.getByLabel('Cantidad para Segundo perfil', { exact: true }).fill('65');
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
+  const sharedEntries = await request(`/api/entries?date=${diaryDate}&profile=${second.id}`);
+  assert.equal(sharedEntries.length, 1, 'edited entry was not shared to the other profile');
+  assert.equal(sharedEntries[0].quantity, 65, 'the other profile did not keep its own quantity');
+
+  await page.locator('.entry').filter({ hasText: '80 g' }).getByRole('button').first().click();
+  await page.getByText('✓ Ya está en su diario', { exact: true }).waitFor();
+  assert.ok(await page.getByRole('checkbox', { name: 'Segundo perfil', exact: true }).isDisabled(), 'an already-shared entry can be duplicated');
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
 
   // The initial add sheet is intentionally quiet: it shows this profile's
   // meal-specific frequent foods without opening the keyboard. A food already
@@ -248,5 +267,5 @@ try {
   await page.screenshot({ path: '/tmp/nutri-keyboard-review.png' });
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   assert.deepEqual(errors, []);
-  console.log('PASS: macro editing; retained drafts; invalid portions; timed notifications; offline sync; responsive tabs; live diary updates; search in reduced and offset visual viewports; barcode entry; protected profile deletion; no uncaught errors.');
+  console.log('PASS: macro editing; shared-entry editing without duplicates; retained drafts; invalid portions; timed notifications; offline sync; responsive tabs; live diary updates; search in reduced and offset visual viewports; barcode entry; protected profile deletion; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }

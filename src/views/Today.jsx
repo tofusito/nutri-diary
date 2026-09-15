@@ -66,6 +66,7 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
     <button className="link-button center" onClick={onCopy}>Copiar el día anterior</button>
 
     {editing && <EditEntry entry={editing}
+      profile={profile} profiles={profiles} onAdd={onAdd}
       onSave={changes => onEdit(editing, changes)}
       onDelete={() => onDelete(editing)}
       onClose={() => setEditing(null)} />}

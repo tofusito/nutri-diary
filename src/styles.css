@@ -180,6 +180,9 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 .also-amount input{width:78px;text-align:center;background:var(--raised);border:1px solid var(--line);
   border-radius:10px;padding:8px;color:var(--text);font-weight:800}
 .also-amount small{font-family:var(--mono);color:var(--kcal);font-size:11px;min-width:56px}
+.shared-status{font-size:11px;font-weight:750;color:var(--success);white-space:nowrap}
+.sharing-check{margin:6px 0 0;font-size:11px;color:var(--muted)}
+.already-shared .check{color:var(--muted)}
 
 /* ---- forms ---- */
 .form{display:grid;gap:13px}
