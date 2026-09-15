@@ -119,6 +119,8 @@ On the phone: open the HTTPS site and Add to Home Screen. Barcode scanning needs
 
 ## How it is built
 
+All sheets follow the visible viewport in both axes when the mobile keyboard opens or Safari pans the page. Form columns can shrink to the available width, and opening/closing a sheet restores focus without scrolling the page. Regression checks cover expanded food options, long brands, portions, recipes and scanner fields at phone widths. Run `npm run build && npm run check` for Chromium or `BROWSER=webkit npm run check` for WebKit (install it with `npx playwright install webkit`). Keyboard and viewport changes are simulated; check the installed PWA on a real iPhone too. See [VisualViewport](https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport).
+
 A React PWA, an Express API and one MongoDB instance with two databases. `nutrition_catalog` holds the shared foods and the cache of external lookups; `nutrition_tracking` holds profiles, goal history and diary entries, each row stamped with its `profileId`. Client-generated UUIDs make a lost response safe to retry. Deleting a profile deletes its diary and goal history, and the last remaining profile cannot be deleted. An older single-profile database migrates on startup: the previous profile becomes `Perfil 1` and its rows are stamped with its id.
 
 Open Food Facts data is community-maintained and sometimes incomplete, which is why missing values stay missing. Text search goes through `search.openfoodfacts.org`; a barcode is asked of the search index and the product endpoint at once, so one of them being rate limited does not look like an outage. Product reads and searches keep separate rate-limit queues, and attribution stays in the interface.

@@ -17,6 +17,8 @@ export function trackViewport() {
     const bounds = probe.getBoundingClientRect()
     root.style.setProperty('--sheet-top', `${viewport.offsetTop - bounds.top}px`)
     root.style.setProperty('--sheet-height', `${viewport.height}px`)
+    root.style.setProperty('--sheet-left', `${viewport.offsetLeft - bounds.left}px`)
+    root.style.setProperty('--sheet-width', `${viewport.width}px`)
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(apply) }
   const focus = () => {
@@ -41,5 +43,6 @@ export function trackViewport() {
     document.removeEventListener('focusin', focus)
     document.removeEventListener('focusout', focus)
     probe.remove()
+    for (const name of ['top', 'height', 'left', 'width']) root.style.removeProperty(`--sheet-${name}`)
   }
 }
