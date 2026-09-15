@@ -198,16 +198,15 @@ try {
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
 
   // The initial add sheet is intentionally quiet: it shows this profile's
-  // meal-specific frequent foods without opening the keyboard. The plus action
-  // logs the remembered portion and keeps the sheet open for another quick add.
+  // meal-specific frequent foods without opening the keyboard. A food already
+  // logged in this meal keeps its place but shows a persistent, disabled check.
   await tab('Hoy');
   await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
   const searchField = page.getByPlaceholder('Buscar o escribir un código');
   assert.equal(await searchField.evaluate(element => document.activeElement === element), false, 'frequent-food sheet must not autofocus search');
   await page.getByRole('heading', { name: 'Tus habituales de desayuno', exact: true }).waitFor();
-  const quick = page.getByRole('button', { name: /Añadir Test stability, 80 g/ });
-  await quick.click();
-  await page.getByRole('status').filter({ hasText: 'Test stability añadido · 80 g' }).waitFor();
+  const quick = page.getByRole('button', { name: /Ya añadido Test stability, 80 g/ });
+  assert.ok(await quick.isDisabled(), 'an already logged habitual must not allow an accidental duplicate');
   await searchField.click();
   assert.equal(await searchField.evaluate(element => document.activeElement === element), true, 'search should focus only after tapping it');
   await searchField.fill('Test');

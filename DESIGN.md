@@ -26,6 +26,7 @@ Keep the red bowl variant consistent across:
 - Treat the add-food sheet as a mobile-first flow: stable positioning, a scrollable result area and controls that remain reachable while the keyboard is open.
 - Add and close controls have 44 pixel targets. Confirmation uses a check mark and errors use an exclamation mark alongside explanatory text. Destructive confirmations have an outlined warning surface.
 - Floating notifications and reversible deletion notices dismiss after five seconds. The undo action remains available for that full interval; validation errors inside forms remain until corrected.
+- A habitual food already present in the selected meal stays in place with a persistent check and its quick-add button disabled. Tapping the row still opens the quantity view for an intentional second serving.
 
 Validate text pairs against [WCAG contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html), and respect [reduced motion](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion). Run `npm run build`, `npm run check` and `npm run screenshots` to verify the mobile flows and refresh documentation previews.
 

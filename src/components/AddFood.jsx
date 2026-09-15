@@ -15,7 +15,7 @@ const NOTIFICATION_DURATION_MS = 5_000
 /** Search sheet used to log a food: always looks in the personal catalog first,
  *  then in Open Food Facts. A barcode can belong to several products, so every
  *  match is listed instead of silently taking the first one. */
-export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreated, onClose }) {
+export default function AddFood({ meal, entries, foods, profile, profiles, onAdd, onCreated, onClose }) {
   const [query, setQuery] = useState('')
   const [result, setResult] = useState({ mine: [], external: [] })
   const [barcode, setBarcode] = useState('')
@@ -29,7 +29,6 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   const [saving, setSaving] = useState(false)
   const [recent, setRecent] = useState([])
   const [quickAdding, setQuickAdding] = useState('')
-  const [quickAdded, setQuickAdded] = useState('')
   const [notice, setNotice] = useState('')
   const validQuantity = value => Number.isFinite(Number(value)) && Number(value) > 0
   const request = useRef(0)
@@ -45,6 +44,9 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
     if (!needle) return [...usable].sort(byFavorite).slice(0, 12)
     return usable.filter(food => searchableText(food).includes(needle)).sort(byFavorite).slice(0, 25)
   }, [foods, query])
+  const addedFoodIds = useMemo(() => new Set((entries || [])
+    .filter(entry => entry.meal === meal && entry.food?.id)
+    .map(entry => entry.food.id)), [entries, meal])
 
   useEffect(() => {
     const text = query.trim()
@@ -75,7 +77,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
   const repeat = row => { entryIds.current = {}; setChosen(row.food); setQuantity(row.quantity || row.food.servingSize || 100) }
 
   const quickAdd = async row => {
-    if (quickAdding || !profile?.id || !validQuantity(row.quantity)) return
+    if (quickAdding || addedFoodIds.has(row.food.id) || !profile?.id || !validQuantity(row.quantity)) return
     const foodId = row.food.id
     setQuickAdding(foodId); setMessage(''); setNotice('')
     try {
@@ -85,10 +87,9 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
         targets: [{ id: profile.id, quantity: Number(row.quantity) }],
         entryIds: { [profile.id]: crypto.randomUUID() },
       })
-      setQuickAdded(foodId)
       setNotice(`${row.food.name} añadido · ${row.quantity} ${row.food.basis}`)
       clearTimeout(noticeTimer.current)
-      noticeTimer.current = setTimeout(() => { setQuickAdded(''); setNotice('') }, NOTIFICATION_DURATION_MS)
+      noticeTimer.current = setTimeout(() => setNotice(''), NOTIFICATION_DURATION_MS)
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -200,7 +201,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
         <h3>{recent.length ? `Tus habituales de ${meal.toLowerCase()}` : 'Tu biblioteca'}</h3>
         {recent.length ? recent.map(row => <FrequentRow key={row.food.id} row={row}
           onPick={() => repeat(row)} onQuickAdd={() => quickAdd(row)}
-          adding={quickAdding === row.food.id} added={quickAdded === row.food.id} />)
+          adding={quickAdding === row.food.id} added={addedFoodIds.has(row.food.id)} />)
           : mine.length ? mine.map(food => <Row key={food.id} food={food} onPick={() => choose(food)} />)
             : <p className="empty">Nada en tu biblioteca todavía.</p>}
       </> : <>
@@ -219,7 +220,7 @@ const sourceLabel = food => food.source === 'openfoodfacts' ? 'Open Food Facts' 
 function FrequentRow({ row, onPick, onQuickAdd, adding, added }) {
   const food = row.food
   const portion = scaleNutrients(food.nutrients, row.quantity)
-  return <div className="result quick-result">
+  return <div className={`result quick-result ${added ? 'is-added' : ''}`}>
     <button type="button" className="result-main" onClick={onPick}>
       {food.image ? <img src={food.image} alt="" loading="lazy" /> : <span className="result-dot star">↺</span>}
       <span className="result-body"><strong>{food.name}</strong>
@@ -227,8 +228,8 @@ function FrequentRow({ row, onPick, onQuickAdd, adding, added }) {
         <small className="result-macros"><Macros nutrients={portion} /></small>
       </span>
     </button>
-    <button type="button" className={`quick-add ${added ? 'added' : ''}`} onClick={onQuickAdd} disabled={adding}
-      aria-label={`${added ? 'Añadido' : 'Añadir'} ${food.name}, ${row.quantity} ${food.basis}`}>{adding ? '…' : added ? '✓' : '+'}</button>
+    <button type="button" className={`quick-add ${added ? 'added' : ''}`} onClick={onQuickAdd} disabled={adding || added}
+      aria-label={`${added ? 'Ya añadido' : 'Añadir'} ${food.name}, ${row.quantity} ${food.basis}`}>{adding ? '…' : added ? '✓' : '+'}</button>
   </div>
 }
 

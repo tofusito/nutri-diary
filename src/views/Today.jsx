@@ -70,7 +70,7 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
       onDelete={() => onDelete(editing)}
       onClose={() => setEditing(null)} />}
 
-    {adding && <AddFood meal={adding} foods={foods} profile={profile} profiles={profiles}
+    {adding && <AddFood meal={adding} entries={entries} foods={foods} profile={profile} profiles={profiles}
       onCreated={food => onFoods(current => [food, ...current.filter(item => item.id !== food.id)])}
       onAdd={onAdd} onClose={() => setAdding(null)} />}
   </main>
