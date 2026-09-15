@@ -12,6 +12,8 @@ Log the meal, see what is left. No coaching, no streaks, no subscription.
 
 Nutri's visual identity is built around a warm cream bowl, golden noodles and charcoal chopsticks on a vivid vermilion-red field. The same mark is used as the repository artwork, browser favicon, Apple touch icon and installable PWA icon, so the app is recognisable on the Home Screen at a glance.
 
+The screenshots below use fictional demo data and contain no household diary information.
+
 <table>
 <tr>
 <td width="33%"><img src="docs/screens/today.png" alt="A day with its totals on top"></td>

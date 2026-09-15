@@ -1,5 +1,6 @@
 /** Regenerates the screenshots used by the README from a seeded diary, so the
- *  images in the repository always show the app as it currently behaves.
+ *  images in the repository always show the app as it currently behaves. The
+ *  profiles and values are deliberately fictional: these assets are public.
  *  Run with: node scripts/screenshots.mjs */
 import { mkdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -34,7 +35,7 @@ const day = offset => {
 
 const [first] = await api('/api/profiles');
 await api(`/api/profiles/${first.id}`, 'PUT', { name: 'Alex', carbs: 250, protein: 165, fat: 70, weight: 72, height: 175, age: 30, sex: 'male', activity: 1.55 });
-await api('/api/profiles', 'POST', { name: 'Nora', carbs: 185, protein: 120, fat: 55, weight: 60, height: 165, age: 31, sex: 'female', activity: 1.375 });
+await api('/api/profiles', 'POST', { name: 'Nora', carbs: 185, protein: 120, fat: 55, weight: 62, height: 168, age: 29, sex: 'female', activity: 1.375 });
 
 const food = (name, brand, nutrients) => api('/api/foods', 'POST', { name, brand, basis: 'g', nutrients });
 const oats = await food('Copos de avena', 'Hacendado', { kcal: 375, carbs: 59, protein: 13, fat: 7 });
