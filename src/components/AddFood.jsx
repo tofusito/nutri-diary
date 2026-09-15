@@ -186,7 +186,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
   const createByHand = () => setCreating({ ...emptyFood(), name: query.trim().length > 2 && !barcode ? query.trim() : '', barcode })
   return <Modal title={`Añadir a ${meal}`} onClose={onClose} tall
     action={<>
-      <button type="button" className="sheet-action" onClick={createByHand} aria-label="Añadir alimento a mano" title="Añadir alimento a mano"><Icon name="edit" /></button>
+      <button type="button" className="sheet-action" onClick={createByHand} aria-label="Añadir alimento a mano" title="Añadir alimento a mano"><Icon name="add" /></button>
       <button type="button" className="sheet-action" onClick={onCopyPrevious} aria-label={`Copiar ${meal.toLowerCase()} del día anterior`} title={`Copiar ${meal.toLowerCase()} del día anterior`}><Icon name="copy" /></button>
     </>}>
     <div className="search-row">
@@ -195,7 +195,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
     </div>
     {barcode && barcode === query.trim() && !loading && <p className="barcode-note">Código <b>{barcode}</b> · {mine.length + external.length
       ? `${mine.length + external.length} producto(s). Un mismo código puede estar reutilizado en varios productos: revísalo antes de elegir.`
-      : 'sin resultados. Pulsa el lápiz de arriba para crearlo: el código ya va rellenado.'}</p>}
+      : 'sin resultados. Pulsa el + de arriba para crearlo: el código ya va rellenado.'}</p>}
     {loading && <p className="muted">Buscando…</p>}
     {message && <p className="error" role="alert">{message}</p>}
     {notice && <p className="success" role="status">{notice}</p>}
