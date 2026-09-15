@@ -5,6 +5,8 @@ import { recognizeLabel } from '../lib/ocr.js'
 import QrCode from './QrCode.jsx'
 import Icon from './Icon.jsx'
 import Scanner from './Scanner.jsx'
+import Modal from './Modal.jsx'
+import { plainField, numberField } from '../lib/fields.js'
 
 const fields = [['kcal', 'kcal'], ['carbs', 'Hidratos'], ['protein', 'Proteínas'], ['fat', 'Grasas']]
 const confidenceText = { high: 'alta', medium: 'media', low: 'baja' }
@@ -12,7 +14,7 @@ const confidenceText = { high: 'alta', medium: 'media', low: 'baja' }
 /** Minimal by default: name, barcode and the four values per 100 g/ml. Brand,
  *  portion, favorite, label OCR and the private QR stay behind "Más opciones".
  *  Whatever is saved here goes to the shared catalog every profile searches. */
-export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
+export default function FoodForm({ title = 'Nuevo alimento', initial, onSave, onCancel, onDelete }) {
   const formId = useId()
   const [food, setFood] = useState(initial || emptyFood())
   const [ocr, setOcr] = useState('')
@@ -65,11 +67,14 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
   }
   const unit = food.basis === 'ml' ? 'ml' : 'g'
 
+  const primary = <button type="submit" form={formId} className="modal-primary" disabled={saving || loading}>{saving ? 'Guardando…' : 'Guardar'}</button>
+
   return <>
-  <form id={formId} className="form form-sheet-scroll" onSubmit={submit}>
+  <Modal title={title} onClose={onCancel} primary={primary}>
+  <form id={formId} className="form" onSubmit={submit} autoComplete="off">
     <section className="ai-assistant" aria-labelledby="food-ai-title">
       <div className="ai-assistant-head"><div><p className="eyebrow">ASISTENTE</p><h3 id="food-ai-title">Rellenar con IA</h3></div><span className="ai-badge">WEB</span></div>
-      <label>Qué alimento o producto buscas<input value={aiQuery} onChange={event => setAiQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); fillWithAi() } }} placeholder="Ej. Pan de hamburguesa Hacendado" enterKeyHint="search" autoComplete="off" /></label>
+      <label>Qué alimento o producto buscas<input {...plainField('ai_query')} type="search" value={aiQuery} onChange={event => setAiQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); fillWithAi() } }} placeholder="Ej. Pan de hamburguesa Hacendado" enterKeyHint="search" /></label>
       <button type="button" className="ai-action" onClick={fillWithAi} disabled={aiQuery.trim().length < 2 || aiLoading || saving || loading}>{aiLoading ? 'Buscando…' : 'Buscar con IA'}</button>
       <p className="muted">Consulta fuentes públicas y propone valores por 100 {unit}. Revísalos antes de guardar.</p>
       {aiError && <p className="error" role="alert">{aiError}</p>}
@@ -80,15 +85,15 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
         <small className="muted">La propuesta queda editable. Guarda solo cuando te cuadre con la etiqueta.</small>
       </div>}
     </section>
-    <label>Nombre<input required value={food.name} onChange={event => set('name', event.target.value)} placeholder="Ej. Yogur griego natural" /></label>
+    <label>Alimento<input {...plainField('food_title')} required value={food.name} onChange={event => set('name', event.target.value)} placeholder="Ej. Yogur griego natural" enterKeyHint="next" autoCapitalize="sentences" /></label>
     <label>Código de barras<span className="scan-field">
-      <input inputMode="numeric" value={food.barcode || ''} onChange={event => set('barcode', event.target.value)} placeholder="Escanéalo o escríbelo" />
+      <input {...numberField('ean', { inputMode: 'numeric', pattern: '[0-9]*' })} value={food.barcode || ''} onChange={event => set('barcode', event.target.value)} placeholder="Escanéalo o escríbelo" enterKeyHint="next" />
       <button type="button" className="secondary scan-button" onClick={() => setScanning(true)} aria-label="Escanear el código de barras"><Icon name="barcode" />Escanear</button>
     </span></label>
-    <label>Se mide en<select value={food.basis} onChange={event => set('basis', event.target.value)}><option value="g">gramos</option><option value="ml">mililitros</option></select></label>
+    <label>Se mide en<select {...plainField('basis')} value={food.basis} onChange={event => set('basis', event.target.value)}><option value="g">gramos</option><option value="ml">mililitros</option></select></label>
     <fieldset><legend>Por 100 {unit}</legend>
       <div className="macro-inputs">{fields.map(([key, label]) =>
-        <label key={key}>{label}<input aria-label={label} type="number" min="0" step="0.1" inputMode="decimal" value={food.nutrients[key] ?? ''} onFocus={selectZero} onChange={event => nutrient(key, event.target.value)} /></label>)}</div>
+        <label key={key}>{label}<input {...numberField(`per100_${key}`)} aria-label={label} type="number" min="0" step="0.1" value={food.nutrients[key] ?? ''} onFocus={selectZero} onChange={event => nutrient(key, event.target.value)} enterKeyHint="next" /></label>)}</div>
       <p className="muted">Copia los valores de la etiqueta. Deja en blanco lo que no venga: se guarda como desconocido, no como cero.</p>
     </fieldset>
     <p className="muted">Se guarda en la biblioteca común: lo verán todos los perfiles.</p>
@@ -96,8 +101,8 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
     <details className="more">
       <summary>Más opciones</summary>
       <div className="two-col">
-        <label>Marca<input value={food.brand || ''} onChange={event => set('brand', event.target.value)} /></label>
-        <label>Ración habitual ({unit})<input type="number" min="0" step="1" value={food.servingSize || ''} onFocus={selectZero} onChange={event => set('servingSize', number(event.target.value))} /></label>
+        <label>Marca<input {...plainField('maker')} value={food.brand || ''} onChange={event => set('brand', event.target.value)} enterKeyHint="next" /></label>
+        <label>Ración habitual ({unit})<input {...numberField('portion')} type="number" min="0" step="1" value={food.servingSize || ''} onFocus={selectZero} onChange={event => set('servingSize', number(event.target.value))} enterKeyHint="done" /></label>
       </div>
       <label className="check"><input type="checkbox" checked={Boolean(food.favorite)} onChange={event => set('favorite', event.target.checked)} /> Favorito</label>
       <label className="upload">{loading ? 'Leyendo etiqueta…' : 'Leer etiqueta con la cámara'}<input type="file" accept="image/*" capture="environment" onChange={event => scanLabel(event.target.files?.[0])} /></label>
@@ -118,7 +123,7 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
 
     {error && <p className="error" role="alert">{error}</p>}
   </form>
-  <footer className="form-actions form-sheet-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="submit" form={formId} disabled={saving || loading}>{saving ? 'Guardando…' : 'Guardar alimento'}</button></footer>
+  </Modal>
   {scanning && <Scanner onResult={code => { set('barcode', code); setScanning(false) }} onClose={() => setScanning(false)} />}
   </>
 }

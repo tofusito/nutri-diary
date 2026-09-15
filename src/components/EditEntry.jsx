@@ -3,6 +3,7 @@ import { api } from '../lib/api.js'
 import { scaleNutrients, nutrientText, meals, localDate, selectZero } from '../lib/nutrition.js'
 import Macros from './Macros.jsx'
 import Modal from './Modal.jsx'
+import { plainField, numberField } from '../lib/fields.js'
 
 /** Editing a logged portion: the same controls as adding it, instead of the bare
  *  browser prompt this replaced. Meal and date are editable because mis-tapping
@@ -86,14 +87,15 @@ export default function EditEntry({ entry, profile, profiles, onSave, onAdd, onD
     } catch (error) { setMessage(error.message) } finally { setBusy(false) }
   }
 
-  return <Modal title="Editar lo registrado" onClose={onClose}>
+  return <Modal title="Editar lo registrado" onClose={onClose}
+    primary={<button type="button" className="modal-primary" disabled={busy} onClick={save}>{busy ? 'Guardando…' : 'Guardar'}</button>}>
     <div className="chosen"><strong>{entry.food.name}</strong>
       <span>{[entry.food.brand, `por 100 ${entry.food.basis}`].filter(Boolean).join(' · ')}</span>
       <div className="food-macros">{nutrientText(entry.food.nutrients.kcal)} kcal <Macros nutrients={entry.food.nutrients} /></div>
     </div>
 
     <div className="quantity-row"><button className="secondary" onClick={() => setQuantity(q => Math.max(1, Number(q) - 10))}>−10</button>
-      <input type="number" min="1" inputMode="numeric" value={quantity} onFocus={selectZero} onChange={event => setQuantity(event.target.value)} aria-label="Cantidad" />
+      <input {...numberField('amount')} type="number" min="1" value={quantity} onFocus={selectZero} onChange={event => setQuantity(event.target.value)} aria-label="Cantidad" enterKeyHint="done" />
       <span>{entry.food.basis}</span><button className="secondary" onClick={() => setQuantity(q => Number(q) + 10)}>+10</button></div>
     <div className="portion-row">{[30, 50, 100, 150, 200, 250].map(size => <button key={size} className="chip" onClick={() => setQuantity(size)}>{size}</button>)}</div>
 
@@ -104,8 +106,8 @@ export default function EditEntry({ entry, profile, profiles, onSave, onAdd, onD
     </div>
 
     <div className="two-col edit-move">
-      <label>Comida<select value={meal} onChange={event => setMeal(event.target.value)}>{meals.map(item => <option key={item}>{item}</option>)}</select></label>
-      <label>Día<input type="date" value={date} max={localDate()} onChange={event => setDate(event.target.value)} /></label>
+      <label>Comida<select {...plainField('meal')} value={meal} onChange={event => setMeal(event.target.value)}>{meals.map(item => <option key={item}>{item}</option>)}</select></label>
+      <label>Día<input {...plainField('day')} type="date" value={date} max={localDate()} onChange={event => setDate(event.target.value)} /></label>
     </div>
 
     {others.length > 0 && <div className="also-for">
@@ -124,8 +126,8 @@ export default function EditEntry({ entry, profile, profiles, onSave, onAdd, onD
           {exists
             ? <span className="shared-status">✓ Ya está en su diario</span>
             : grams !== undefined && <span className="also-amount">
-              <input type="number" min="1" inputMode="numeric" onFocus={selectZero} aria-label={`Cantidad para ${item.name}`}
-                value={grams} onChange={event => setAlsoFor(current => ({ ...current, [item.id]: event.target.value }))} />
+              <input {...numberField(`amount_for_${item.id}`)} type="number" min="1" onFocus={selectZero} aria-label={`Cantidad para ${item.name}`}
+                value={grams} onChange={event => setAlsoFor(current => ({ ...current, [item.id]: event.target.value }))} enterKeyHint="done" />
               {entry.food.basis}
               <small>{nutrientText(scaleNutrients(entry.food.nutrients, Number(grams) > 0 ? Number(grams) : 0).kcal)} kcal</small>
             </span>}
@@ -144,7 +146,5 @@ export default function EditEntry({ entry, profile, profiles, onSave, onAdd, onD
         </div>
       : <button className="link-button danger" onClick={() => setConfirming(true)}>Eliminar del diario</button>}
 
-    <footer className="form-actions"><button className="secondary" onClick={onClose}>Cancelar</button>
-      <button disabled={busy} onClick={save}>{busy ? 'Guardando…' : 'Guardar'}</button></footer>
   </Modal>
 }

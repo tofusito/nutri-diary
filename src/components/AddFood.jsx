@@ -6,6 +6,7 @@ import Macros from './Macros.jsx'
 import Modal from './Modal.jsx'
 import Scanner from './Scanner.jsx'
 import FoodForm from './FoodForm.jsx'
+import { plainField, numberField } from '../lib/fields.js'
 
 const sameFood = (a, b) => a.barcode && b.barcode ? a.barcode === b.barcode && a.name === b.name : a.name === b.name && (a.brand || '') === (b.brand || '')
 const hasKcal = food => Number.isFinite(food?.nutrients?.kcal)
@@ -135,21 +136,21 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
   }, [local, result])
   const external = useMemo(() => (result.external || []).filter(item => hasKcal(item) && !mine.some(food => sameFood(food, item))), [result, mine])
 
-  if (creating) return <Modal title="Nuevo alimento" onClose={() => setCreating(null)} className="form-sheet">
-    <FoodForm initial={creating} onCancel={() => setCreating(null)} onSave={async food => {
+  if (creating) return <FoodForm title="Nuevo alimento" initial={creating} onCancel={() => setCreating(null)} onSave={async food => {
       try { const saved = await api('/api/foods', { method: 'POST', body: JSON.stringify(food) }); onCreated(saved); setCreating(null); choose(saved) }
       catch (error) { throw error }
     }} />
-  </Modal>
 
   const others = (profiles || []).filter(item => item.id !== profile?.id)
   const portion = chosen ? scaleNutrients(chosen.nutrients, validQuantity(quantity) ? Number(quantity) : 0) : null
-  if (chosen) return <Modal title={`Añadir a ${meal}`} onClose={() => setChosen(null)}>
+  const addLabel = saving ? 'Guardando…' : `Añadir${Object.keys(alsoFor).length ? ` a ${Object.keys(alsoFor).length + 1}` : ''}`
+  if (chosen) return <Modal title={`Añadir a ${meal}`} onClose={() => setChosen(null)}
+    primary={<button type="button" className="modal-primary" disabled={saving} onClick={confirm}>{addLabel}</button>}>
     <div className="chosen"><strong>{chosen.name}</strong><span>{[chosen.brand, chosen.quantityText, sourceLabel(chosen)].filter(Boolean).join(' · ')}</span>
       <div className="food-macros">por 100 {chosen.basis} · {nutrientText(chosen.nutrients.kcal)} kcal <Macros nutrients={chosen.nutrients} /></div>
     </div>
     <div className="quantity-row"><button className="secondary" onClick={() => setQuantity(q => Math.max(1, Number(q) - 10))}>−10</button>
-      <input type="number" min="1" inputMode="numeric" value={quantity} onFocus={selectZero} onChange={e => setQuantity(e.target.value)} aria-label="Cantidad" />
+      <input {...numberField('amount')} type="number" min="1" value={quantity} onFocus={selectZero} onChange={e => setQuantity(e.target.value)} aria-label="Cantidad" enterKeyHint="done" />
       <span>{chosen.basis}</span><button className="secondary" onClick={() => setQuantity(q => Number(q) + 10)}>+10</button></div>
     <div className="portion-row">{[30, 50, 100, 150, 200, 250].map(size => <button key={size} className="chip" onClick={() => setQuantity(size)}>{size}</button>)}</div>
     <div className="chosen-total">
@@ -170,8 +171,8 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
               })} /> {item.name}
           </label>
           {grams !== undefined && <span className="also-amount">
-            <input type="number" min="1" inputMode="numeric" onFocus={selectZero} aria-label={`Cantidad para ${item.name}`}
-              value={grams} onChange={event => setAlsoFor(current => ({ ...current, [item.id]: event.target.value }))} />
+            <input {...numberField(`amount_for_${item.id}`)} type="number" min="1" onFocus={selectZero} aria-label={`Cantidad para ${item.name}`}
+              value={grams} onChange={event => setAlsoFor(current => ({ ...current, [item.id]: event.target.value }))} enterKeyHint="done" />
             {chosen.basis}
             <small>{nutrientText(scaleNutrients(chosen.nutrients, validQuantity(grams) ? Number(grams) : 0).kcal)} kcal</small>
           </span>}
@@ -179,18 +180,16 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
       })}
     </div>}
     {message && <p className="error">{message}</p>}
-    <footer className="form-actions"><button className="secondary" onClick={() => setChosen(null)}>Volver</button>
-      <button disabled={saving} onClick={confirm}>{saving ? 'Guardando…' : `Añadir${Object.keys(alsoFor).length ? ` a ${Object.keys(alsoFor).length + 1}` : ''}`}</button></footer>
   </Modal>
 
   const createByHand = () => setCreating({ ...emptyFood(), name: query.trim().length > 2 && !barcode ? query.trim() : '', barcode })
-  return <Modal title={`Añadir a ${meal}`} onClose={onClose} tall
+  return <Modal title={`Añadir a ${meal}`} onClose={onClose}
     action={<>
       <button type="button" className="sheet-action" onClick={createByHand} aria-label="Añadir alimento a mano" title="Añadir alimento a mano"><Icon name="add" /></button>
       <button type="button" className="sheet-action" onClick={onCopyPrevious} aria-label={`Copiar ${meal.toLowerCase()} del día anterior`} title={`Copiar ${meal.toLowerCase()} del día anterior`}><Icon name="copy" /></button>
     </>}>
-    <div className="search-row">
-      <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar o escribir un código" inputMode="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck="false" />
+    <div className="search-row sticky-search">
+      <input {...plainField('food_lookup')} type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar o escribir un código" enterKeyHint="search" autoCorrect="off" autoCapitalize="none" spellCheck={false} />
       <button className="secondary scan-button" onClick={() => setScanner(true)} aria-label="Escanear código de barras"><Icon name="barcode" /></button>
     </div>
     {barcode && barcode === query.trim() && !loading && <p className="barcode-note">Código <b>{barcode}</b> · {mine.length + external.length

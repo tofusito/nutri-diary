@@ -22,7 +22,22 @@ const request = async (path, method = 'GET', body) => {
   const r = await fetch(base + path, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   assert.ok(r.ok); return r.json();
 };
-const tab = name => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+const tab = async name => {
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.waitForFunction(() => !document.documentElement.classList.contains('typing'));
+  await page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+};
+const settled = locator => locator.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished)));
+const frames = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+/** Every field someone types into must carry the attributes that keep Safari's
+ *  contact, phone and card AutoFill away. */
+const assertNoAutofill = async scope => {
+  const offenders = await scope.evaluate(root => [...root.querySelectorAll('input,select,textarea')]
+    .filter(el => !['checkbox', 'radio', 'file', 'password', 'hidden'].includes(el.type))
+    .filter(el => el.getAttribute('autocomplete') !== 'off' || !/^search_/.test(el.name || '') || /-/.test(el.name || ''))
+    .map(el => `${el.getAttribute('aria-label') || el.placeholder || el.type}:${el.name || '(sin name)'}:${el.getAttribute('autocomplete')}`));
+  assert.deepEqual(offenders, [], 'fields must opt out of Safari AutoFill');
+};
 const checkSheetControls = async () => {
   const sheet = page.getByRole('dialog').last();
   await sheet.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
@@ -61,16 +76,14 @@ try {
   await tab('Alimentos'); await page.getByRole('button', { name: '+ Nuevo', exact: true }).click();
   const foodDialog = page.getByRole('dialog');
   await foodDialog.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished)));
-  assert.equal(await foodDialog.locator('.form-sheet-scroll').count(), 1, 'food content should have one dedicated scroll area');
-  assert.equal(await foodDialog.locator('.form-sheet-actions').count(), 1, 'food actions should stay outside the scroll area');
-  assert.ok(await foodDialog.locator('.form-sheet-scroll').evaluate(el => el.scrollHeight > el.clientHeight), 'long food form should scroll independently from its actions');
-  const foodSheetLayout = await foodDialog.evaluate(el => {
-    const form = el.querySelector('.form-sheet-scroll').getBoundingClientRect();
-    const actions = el.querySelector('.form-sheet-actions').getBoundingClientRect();
-    return { formBottom: form.bottom, actionsTop: actions.top };
-  });
-  assert.ok(foodSheetLayout.formBottom <= foodSheetLayout.actionsTop + 1, 'food actions must not cover the form');
-  assert.equal(await page.getByLabel('Nombre', { exact: true }).evaluate(element => document.activeElement === element), false, 'new-food sheet must not open the keyboard');
+  assert.equal(await foodDialog.locator('.modal-body').count(), 1, 'food content should have one scroll area');
+  assert.ok(await foodDialog.locator('.modal-body').evaluate(el => el.scrollHeight > el.clientHeight), 'long food form should scroll inside the sheet');
+  const foodBox = await foodDialog.boundingBox();
+  assert.ok(foodBox.x <= 1 && foodBox.y <= 1 && foodBox.width >= 389 && foodBox.height >= 843, 'a sheet with fields fills the phone screen');
+  assert.equal(await foodDialog.locator('.modal-head').getByRole('button', { name: 'Guardar', exact: true }).count(), 1, 'saving lives in the top bar, out of the keyboard\'s reach');
+  assert.equal(await foodDialog.locator('.modal-body button[type="submit"]').count(), 0, 'no submit button inside the scroll area');
+  assert.equal(await page.getByLabel('Alimento', { exact: true }).evaluate(element => document.activeElement === element), false, 'new-food sheet must not open the keyboard');
+  await assertNoAutofill(foodDialog);
   // Expanded fields used to force the grid wider than the phone. Focusing
   // Brand then let Safari pan sideways, cutting off the title and controls.
   await page.getByText('Más opciones', { exact: true }).click();
@@ -88,55 +101,64 @@ try {
     }
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByText('Más opciones', { exact: true }).click();
-  for (const [height, offsetTop, width, offsetLeft] of [[420, 0, 390, 0], [360, 80, 350, 40], [844, 0, 390, 0]]) {
-    await page.evaluate(({ height, offsetTop, width, offsetLeft }) => {
+  // The keyboard arriving must not move or resize the sheet at all. What used to
+  // jump was script chasing visualViewport while iOS animated and panned; now
+  // those events are simply irrelevant to layout.
+  const stillBox = await foodDialog.boundingBox();
+  for (const [height, offsetTop] of [[420, 0], [360, 80], [300, 30], [844, 0]]) {
+    await page.evaluate(({ height, offsetTop }) => {
       Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: height });
       Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: offsetTop });
-      Object.defineProperty(window.visualViewport, 'width', { configurable: true, value: width });
-      Object.defineProperty(window.visualViewport, 'offsetLeft', { configurable: true, value: offsetLeft });
       window.visualViewport.dispatchEvent(new Event('resize'));
-    }, { height, offsetTop, width, offsetLeft });
-    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    const box = await foodDialog.boundingBox();
-    assert.ok(box.y >= offsetTop - 1 && box.y + box.height <= offsetTop + height + 1, `new-food sheet must fit the visible viewport at ${height}px`);
-    assert.ok(box.x >= offsetLeft - 1 && box.x + box.width <= offsetLeft + width + 1, 'new-food sheet must follow horizontal Safari pan');
+      window.visualViewport.dispatchEvent(new Event('scroll'));
+    }, { height, offsetTop });
+    await frames();
+    assert.deepEqual(await foodDialog.boundingBox(), stillBox, `the sheet moved when the visible viewport became ${height}px at ${offsetTop}`);
   }
-  await page.evaluate(() => {
-    delete window.visualViewport.width;
-    delete window.visualViewport.offsetLeft;
-    window.visualViewport.dispatchEvent(new Event('resize'));
-  });
-  await page.evaluate(() => {
-    Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: 844 });
-    Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: 0 });
-    window.visualViewport.dispatchEvent(new Event('resize'));
-  });
+  await page.evaluate(() => { delete window.visualViewport.height; delete window.visualViewport.offsetTop; });
+  // A field low in the form is lifted inside the sheet as it takes focus, so
+  // it sits above any keyboard and Safari's pan has nothing left to reveal.
+  const lowField = page.getByLabel('Ración habitual (g)', { exact: true });
+  await foodDialog.locator('.modal-body').evaluate(el => { el.scrollTop = 0; });
+  const before = await lowField.boundingBox();
+  assert.ok(before.y + before.height > 844 * 0.4, 'test setup: the field should start low on the screen');
+  await lowField.evaluate(el => el.focus({ preventScroll: true }));
+  await frames();
+  const lifted = await lowField.boundingBox();
+  assert.ok(lifted.y + lifted.height <= 844 * 0.4 + 1, `a low field must be lifted above the keyboard line on focus (${Math.round(lifted.y)}px)`);
+  // Tapping a button that sits inside a field's label must not move anything
+  // under the finger: the scan button still opens the scanner on first tap.
+  assert.equal(await page.evaluate(() => window.scrollY), 0, 'focusing inside a sheet must not scroll the page behind it');
+  assert.ok(await page.evaluate(() => document.documentElement.classList.contains('typing')), 'typing state must be recorded while a field is focused');
+  await lowField.blur();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('typing'));
+  await page.getByText('Más opciones', { exact: true }).click();
   await page.getByLabel('Qué alimento o producto buscas', { exact: true }).fill('Yogur griego de prueba');
   await page.route('**/api/foods/ai', async route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     food: { name: 'Yogur griego de prueba', brand: 'Marca de prueba', barcode: '', basis: 'g', nutrients: { kcal: 97, carbs: 4, protein: 9, fat: 5 }, servingSize: 125, source: 'openai-web', ai: { model: 'gpt-5.6-luna', confidence: 'medium', query: 'Yogur griego de prueba', sources: [{ title: 'Fuente de prueba', url: 'https://example.com/nutrition' }], generatedAt: new Date().toISOString() } }, confidence: 'medium', notes: 'Propuesta de prueba.', sources: [{ title: 'Fuente de prueba', url: 'https://example.com/nutrition' }], model: 'gpt-5.6-luna',
   }) }));
   await page.getByRole('button', { name: 'Buscar con IA', exact: true }).click();
   await page.getByText('Propuesta rellenada', { exact: true }).waitFor();
-  assert.equal(await page.getByLabel('Nombre', { exact: true }).inputValue(), 'Yogur griego de prueba');
+  assert.equal(await page.getByLabel('Alimento', { exact: true }).inputValue(), 'Yogur griego de prueba');
   assert.equal(await page.getByLabel('kcal', { exact: true }).inputValue(), '97');
   await page.unroute('**/api/foods/ai');
-  await page.getByLabel('Nombre', { exact: true }).fill('Test stability');
+  await page.getByLabel('Alimento', { exact: true }).fill('Test stability');
   await page.getByLabel('kcal', { exact: true }).fill('100');
   await page.getByLabel('Hidratos', { exact: true }).fill('');
   await page.getByLabel('Proteínas', { exact: true }).fill('0');
   await page.getByLabel('Grasas', { exact: true }).fill('');
   await page.route('**/api/foods', async route => route.request().method() === 'POST' ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Fallo simulado"}' }) : route.continue());
-  await page.getByRole('button', { name: 'Guardar alimento', exact: true }).click();
+  await foodDialog.locator('.modal-head').getByRole('button', { name: 'Guardar', exact: true }).click();
   await page.getByRole('alert').filter({ hasText: 'Fallo simulado' }).waitFor();
-  assert.equal(await page.getByLabel('Nombre', { exact: true }).inputValue(), 'Test stability');
+  assert.equal(await page.getByLabel('Alimento', { exact: true }).inputValue(), 'Test stability');
   await page.unroute('**/api/foods');
-  await page.getByRole('button', { name: 'Guardar alimento', exact: true }).click();
+  await foodDialog.locator('.modal-head').getByRole('button', { name: 'Guardar', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   const [food] = await request('/api/foods'); assert.equal(food.nutrients.protein, 0); assert.equal(food.nutrients.fat, null);
   await page.getByRole('button', { name: 'Receta', exact: true }).click();
   await checkSheetControls();
-  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await assertNoAutofill(page.getByRole('dialog'));
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   await request('/api/foods', 'POST', { id: randomUUID(), name: 'No kcal stability', basis: 'g', nutrients: { kcal: null, carbs: null, protein: 2, fat: null } });
   await page.reload(); await page.getByRole('navigation').waitFor({ state: 'visible' });
   await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
@@ -211,6 +233,7 @@ try {
     const box = await sheet.boundingBox();
     assert.ok(box.y >= -1, `sheet starts above the viewport at ${height}px`);
     assert.ok(box.y + box.height <= height + 1, `sheet overflows the viewport at ${height}px`);
+    await assertNoAutofill(sheet);
     for (const control of [page.getByPlaceholder('Buscar o escribir un código'), page.getByRole('button', { name: 'Añadir alimento a mano', exact: true }), page.getByRole('button', { name: 'Copiar desayuno del día anterior', exact: true })]) {
       const rect = await control.boundingBox();
       assert.ok(rect && rect.y >= 0 && rect.y + rect.height <= height + 1, `a sheet control is off screen at ${height}px`);
@@ -218,7 +241,12 @@ try {
     // The sheet must reach the bottom of the visible area: any gap there is
     // where the page behind showed through under the keyboard.
     assert.ok(Math.abs(box.y + box.height - height) <= 1, `sheet leaves a ${Math.round(height - box.y - box.height)}px gap at ${height}px`);
-    assert.ok(await page.locator('.results').evaluate(el => el.scrollHeight >= el.clientHeight), 'results should scroll inside the sheet');
+    assert.equal(await sheet.locator('.modal-body .results').count(), 1, 'results live inside the sheet\'s one scroll area');
+    // Scrolling the results keeps the search field in place below the top bar.
+    const fieldTop = (await page.getByPlaceholder('Buscar o escribir un código').boundingBox()).y;
+    await sheet.locator('.modal-body').evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await frames();
+    assert.ok(Math.abs((await page.getByPlaceholder('Buscar o escribir un código').boundingBox()).y - fieldTop) <= 6, 'the search field must stay put while results scroll');
     await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   }
 
@@ -235,7 +263,7 @@ try {
   await page.getByRole('button', { name: 'Buscar', exact: true }).click();
   await manual.waitFor({ state: 'hidden' });
   assert.equal(await page.getByPlaceholder('Escanéalo o escríbelo').inputValue(), '8410014477743', 'scanned code did not reach the form');
-  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
 
   // Deleting a profile only appears once a second one exists, so it can never
   // remove the last diary.
@@ -298,33 +326,14 @@ try {
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await zeroMacro.pressSequentially('37');
   assert.equal(await zeroMacro.inputValue(), '37', 'zero macro should be replaced on first typing');
-  await tab('Hoy');
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
-  // A virtual keyboard changes the visual viewport without resizing the page.
-  // Exercise both keyboard shrink and Safari's pan; a real iPhone is still needed.
-  for (const [height, offsetTop] of [[410, 0], [360, 80], [300, 30], [844, 0]]) {
-    await page.evaluate(({ height, offsetTop }) => {
-      Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: height });
-      Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: offsetTop });
-      window.visualViewport.dispatchEvent(new Event('resize'));
-    }, { height, offsetTop });
-    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    await page.locator('.modal-backdrop').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished)));
-    const bounds = await page.getByRole('dialog').boundingBox();
-    assert.ok(bounds.y >= offsetTop - 1 && bounds.y + bounds.height <= offsetTop + height + 1, 'sheet must fit the visible viewport');
-    assert.ok((await page.locator('.results').boundingBox()).height > 60, 'search results must retain usable space');
-    const backing = await page.locator('.modal-backdrop').evaluate(el => {
-      const style = getComputedStyle(el, '::after');
-      return { color: style.backgroundColor, top: parseFloat(style.top), height: parseFloat(style.height), panelHeight: el.getBoundingClientRect().height };
-    });
-    const sheetColor = await page.getByRole('dialog').evaluate(el => getComputedStyle(el).backgroundColor);
-    assert.equal(backing.color, sheetColor, 'keyboard backing must match the sheet, not the black veil');
-    assert.ok(Math.abs(backing.top - backing.panelHeight) <= 1 && backing.height >= 844, 'surface must continue below the visible sheet');
-    if (height === 360) await page.screenshot({ path: '/tmp/nutri-keyboard-open.png' });
-  }
-  await page.screenshot({ path: '/tmp/nutri-keyboard-review.png' });
-  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  // Profile fields live on a page, not a sheet: the floating tab bar steps
+  // aside while typing so it never rides on top of the keyboard.
+  await assertNoAutofill(page.locator('main'));
+  await zeroMacro.focus();
+  await page.waitForFunction(() => document.documentElement.classList.contains('typing'));
+  assert.equal(await page.getByRole('navigation').evaluate(el => getComputedStyle(el).pointerEvents), 'none', 'the tab bar must step aside while typing');
+  await zeroMacro.blur();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('typing'));
 
   // Copying can be started from the whole-day action or from the add sheet
   // for one meal. Both paths must let the user choose meals and preserve the
@@ -364,5 +373,5 @@ try {
   assert.equal(await page.getByRole('dialog', { name: 'Copiar del día anterior' }).count(), 0, 'the meal action must not offer a duplicate copy');
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   assert.deepEqual(errors, []);
-  console.log('PASS: macro editing; shared-entry editing without duplicates; retained drafts; invalid portions; timed notifications; offline sync; responsive tabs; live diary updates; search in reduced and offset visual viewports; barcode entry; protected profile deletion; no uncaught errors.');
+  console.log('PASS: macro editing; shared-entry editing without duplicates; retained drafts; invalid portions; timed notifications; offline sync; responsive tabs; live diary updates; full-screen sheets that the keyboard cannot move; fields lifted above the keyboard line on focus; AutoFill kept off food and diary fields; tab bar out of the way while typing; barcode entry; protected profile deletion; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }

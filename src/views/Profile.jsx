@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { estimateEnergy, macroCalories, number, selectZero } from '../lib/nutrition.js'
 import Icon from '../components/Icon.jsx'
+import { plainField, numberField } from '../lib/fields.js'
 
 const activities = [[1.2, 'Sedentario', 'poco o nada de ejercicio'], [1.375, 'Ligera', '1-3 días por semana'], [1.55, 'Moderada', '3-5 días por semana'], [1.725, 'Alta', '6-7 días por semana'], [1.9, 'Muy alta', 'trabajo físico o doble sesión']]
 const blank = name => ({ id: crypto.randomUUID(), name, carbs: 0, protein: 0, fat: 0, sex: 'male', activity: 1.55 })
@@ -62,14 +63,14 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
     <form className="form profile-form" onSubmit={submit}>
       <section>
         <h2>Datos</h2>
-        <label>Nombre<input required value={draft.name || ''} onChange={event => setDraft(previous => ({ ...previous, name: event.target.value }))} placeholder="Ej. Manu" /></label>
+        <label>Nombre<input {...plainField('profile_label')} required value={draft.name || ''} onChange={event => setDraft(previous => ({ ...previous, name: event.target.value }))} placeholder="Ej. Manu" enterKeyHint="next" autoCapitalize="words" /></label>
         <div className="two-col">
-          <label>Peso (kg)<input type="number" min="1" step="0.1" value={draft.weight ?? ''} onChange={event => set('weight', event.target.value)} /></label>
-          <label>Altura (cm)<input type="number" min="1" value={draft.height ?? ''} onChange={event => set('height', event.target.value)} /></label>
-          <label>Edad<input type="number" min="1" value={draft.age ?? ''} onChange={event => set('age', event.target.value)} /></label>
-          <label>Género<select value={draft.sex || 'male'} onChange={event => setDraft(previous => ({ ...previous, sex: event.target.value }))}><option value="male">Hombre</option><option value="female">Mujer</option></select></label>
+          <label>Peso (kg)<input {...numberField('body_weight')} type="number" min="1" step="0.1" value={draft.weight ?? ''} onChange={event => set('weight', event.target.value)} enterKeyHint="next" /></label>
+          <label>Altura (cm)<input {...numberField('body_height', { inputMode: 'numeric' })} type="number" min="1" value={draft.height ?? ''} onChange={event => set('height', event.target.value)} enterKeyHint="next" /></label>
+          <label>Edad<input {...numberField('body_years', { inputMode: 'numeric' })} type="number" min="1" value={draft.age ?? ''} onChange={event => set('age', event.target.value)} enterKeyHint="next" /></label>
+          <label>Género<select {...plainField('equation_sex')} value={draft.sex || 'male'} onChange={event => setDraft(previous => ({ ...previous, sex: event.target.value }))}><option value="male">Hombre</option><option value="female">Mujer</option></select></label>
         </div>
-        <label>Ejercicio por semana<select value={draft.activity || 1.55} onChange={event => set('activity', event.target.value)}>{activities.map(([value, label, hint]) => <option key={value} value={value}>{label} · {hint}</option>)}</select></label>
+        <label>Ejercicio por semana<select {...plainField('activity')} value={draft.activity || 1.55} onChange={event => set('activity', event.target.value)}>{activities.map(([value, label, hint]) => <option key={value} value={value}>{label} · {hint}</option>)}</select></label>
       </section>
 
       <section>
@@ -77,7 +78,7 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
         <p className="muted">Las calorías salen de tus macros: 4 kcal/g de hidratos y proteína, 9 kcal/g de grasa.</p>
         <div className="kcal-result"><strong>{kcal} kcal</strong><span>objetivo de {draft.name || 'este perfil'}</span></div>
         <div className="macro-inputs">{[['carbs', 'Hidratos'], ['protein', 'Proteínas'], ['fat', 'Grasas']].map(([key, label]) =>
-          <label key={key}>{label}<input aria-label={label} required type="number" min="0" step="any" inputMode="decimal" value={draft[key] ?? ''} onFocus={selectZero} onChange={event => set(key, event.target.value)} /><small>gramos</small></label>)}</div>
+          <label key={key}>{label}<input {...numberField(`goal_${key}`)} aria-label={label} required type="number" min="0" step="any" value={draft[key] ?? ''} onFocus={selectZero} onChange={event => set(key, event.target.value)} /><small>gramos</small></label>)}</div>
       </section>
 
       <section>
@@ -110,7 +111,7 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
 
       {asking === 'delete' && <div className="confirm-row danger-panel">
         <span>Esto borra <b>{active.name}</b> y todo su diario, sin vuelta atrás. Escribe <b>{active.name}</b> para confirmarlo.</span>
-        <input value={typed} onChange={event => setTyped(event.target.value)} aria-label={`Escribe ${active.name} para confirmar`} placeholder={active.name} autoComplete="off" />
+        <input {...plainField('confirm_delete')} value={typed} onChange={event => setTyped(event.target.value)} aria-label={`Escribe ${active.name} para confirmar`} placeholder={active.name} autoCorrect="off" autoCapitalize="none" spellCheck={false} />
         <button type="button" className="secondary" onClick={close}>Cancelar</button>
         <button type="button" className="danger" disabled={saving || typed.trim() !== active.name} onClick={remove}>{saving ? 'Eliminando…' : 'Eliminar'}</button>
       </div>}

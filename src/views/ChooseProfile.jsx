@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { plainField } from '../lib/fields.js'
 import { safeMacroCalories } from '../lib/nutrition.js'
 
 /** Shown right after signing in: the diary always belongs to one person, so the
@@ -29,7 +30,7 @@ export default function ChooseProfile({ profiles, onSelect, onCreate }) {
 
     {creating
       ? <form className="form" onSubmit={create}>
-          <label>Nombre del perfil<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="Ej. Manu" /></label>
+          <label>Nombre del perfil<input {...plainField('profile_label')} autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="Ej. Manu" enterKeyHint="done" autoCapitalize="words" /></label>
           <div className="form-actions"><button type="button" className="secondary" onClick={() => setCreating(false)}>Cancelar</button><button type="submit">Crear y entrar</button></div>
         </form>
       : <button className="secondary full" onClick={() => setCreating(true)}>+ Crear un perfil nuevo</button>}

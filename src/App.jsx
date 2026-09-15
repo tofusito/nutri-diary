@@ -234,7 +234,8 @@ export default function App() {
     {error && <div className="toast error" role="alert">{error}<button onClick={() => setError('')} aria-label="Cerrar notificación">×</button></div>}
     <ErrorBoundary key={tab}>{view}</ErrorBoundary>
     {undo && <div className="undo" role="status" aria-live="polite">Entrada eliminada <button onClick={restore}>Deshacer</button><button onClick={() => setUndo(null)} aria-label="Cerrar notificación">×</button></div>}
-    {copyPlan && <Modal title="Copiar del día anterior" onClose={() => setCopyPlan(null)}>
+    {copyPlan && <Modal title="Copiar del día anterior" onClose={() => setCopyPlan(null)} variant="sheet"
+      footer={<div className="form-actions"><button className="secondary" onClick={() => setCopyPlan(null)}>Cancelar</button><button disabled={!copyPlan.selectedMeals.some(name => copyPlan.missing.some(entry => entry.meal === name))} onClick={confirmCopy}>Añadir</button></div>}>
       <p>Elige qué comidas quieres copiar del día anterior.</p>
       <fieldset className="copy-meals"><legend>Comidas</legend>
         {copyPlan.mealOptions.map(option => <label className="copy-meal-option" key={option.name}>
@@ -248,7 +249,6 @@ export default function App() {
       <p>Se añadirán <b>{copyPlan.missing.filter(entry => copyPlan.selectedMeals.includes(entry.meal)).length}</b> entrada{copyPlan.missing.filter(entry => copyPlan.selectedMeals.includes(entry.meal)).length !== 1 ? 's' : ''}.</p>
       {copyPlan.skipped > 0 && <p className="muted">{copyPlan.skipped} ya {copyPlan.skipped > 1 ? 'están' : 'está'} en este día y se {copyPlan.skipped > 1 ? 'omiten' : 'omite'}.</p>}
       <ul className="plan-list">{copyPlan.missing.filter(entry => copyPlan.selectedMeals.includes(entry.meal)).map(entry => <li key={entry.id}>{entry.meal} · {entry.food.name} · {entry.quantity} {entry.food.basis}</li>)}</ul>
-      <footer className="form-actions"><button className="secondary" onClick={() => setCopyPlan(null)}>Cancelar</button><button disabled={!copyPlan.selectedMeals.some(name => copyPlan.missing.some(entry => entry.meal === name))} onClick={confirmCopy}>Añadir</button></footer>
     </Modal>}
     <nav aria-label="Navegación principal" style={{ '--active-tab': ['Hoy', 'Alimentos', 'Progreso', 'Perfil'].indexOf(tab) }}>{['Hoy', 'Alimentos', 'Progreso', 'Perfil'].map(item =>
       <button key={item} className={tab === item ? 'active' : ''} onClick={() => { setTab(item); window.scrollTo({ top: 0, behavior: 'instant' }) }} aria-current={tab === item ? 'page' : undefined}>

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api.js'
 import { nutrientText } from '../lib/nutrition.js'
 import Macros from '../components/Macros.jsx'
-import Modal from '../components/Modal.jsx'
 import FoodForm from '../components/FoodForm.jsx'
+import { plainField } from '../lib/fields.js'
 import Scanner from '../components/Scanner.jsx'
 import RecipeBuilder from '../components/RecipeBuilder.jsx'
 
@@ -75,7 +75,7 @@ export default function Foods({ foods, onFoods }) {
       <button onClick={() => setEditing(blank(''))}>+ Nuevo</button></div>
 
     <div className="search-row library-search">
-      <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar en tu biblioteca" />
+      <input {...plainField('library')} type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar en tu biblioteca" enterKeyHint="search" autoCorrect="off" autoCapitalize="none" spellCheck={false} />
       <button className="secondary" onClick={() => setRecipe(true)}>Receta</button>
       <button className="secondary" onClick={() => setScanner(true)}>Escanear</button>
     </div>
@@ -95,12 +95,9 @@ export default function Foods({ foods, onFoods }) {
       {!visible.length && <p className="empty">No hay alimentos que coincidan.</p>}
     </div>
 
-    {editing && <Modal title={stored ? 'Editar alimento' : 'Nuevo alimento'} onClose={() => setEditing(null)} className="form-sheet">
-      <FoodForm initial={editing} onSave={save} onCancel={() => setEditing(null)}
-        onDelete={stored ? () => remove(editing) : undefined} />
-    </Modal>}
-    {recipe && <Modal title="Nueva receta" onClose={() => setRecipe(false)} className="form-sheet">
-      <RecipeBuilder foods={foods} onSave={save} onCancel={() => setRecipe(false)} /></Modal>}
+    {editing && <FoodForm title={stored ? 'Editar alimento' : 'Nuevo alimento'} initial={editing} onSave={save} onCancel={() => setEditing(null)}
+      onDelete={stored ? () => remove(editing) : undefined} />}
+    {recipe && <RecipeBuilder foods={foods} onSave={save} onCancel={() => setRecipe(false)} />}
     {scanner && <Scanner onResult={barcode} onClose={() => setScanner(false)} />}
   </main>
 }

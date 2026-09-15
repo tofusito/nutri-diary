@@ -117,23 +117,8 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 .food-macros{grid-column:1/-1;border-top:1px solid var(--line-soft);padding-top:9px;font-size:11px;color:var(--muted)}
 
 /* ---- modal / add sheet ---- */
-.modal-backdrop{position:fixed;left:var(--sheet-left,0px);width:var(--sheet-width,100%);top:var(--sheet-top,0px);height:var(--sheet-height,100dvh);z-index:10;display:flex;align-items:end;justify-content:center;
-  padding-top:env(safe-area-inset-top);isolation:isolate}
-/* The veil bleeds well past its box: if a measurement is ever off, what shows
-   is the veil and not the diary underneath. */
-.modal-backdrop::before{content:'';position:absolute;inset:-50vh 0;background:#000c;backdrop-filter:blur(3px)}
-.modal-backdrop::before{z-index:-1;pointer-events:none}
-/* Continue the sheet below the visual viewport, behind translucent iOS UI. */
-.modal-backdrop::after{content:'';position:absolute;top:100%;left:0;right:0;height:100lvh;background:var(--surface);pointer-events:none}
-.modal{position:relative;max-width:620px;width:100%;min-width:0;min-height:0;max-height:100%;overflow:auto;display:flex;flex-direction:column;background:var(--surface);
-  box-shadow:inset 0 0 0 1px var(--line);border-radius:26px 26px 0 0;padding:18px 18px 26px}
-.modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex:none}
-.modal>*{flex:none}
-/* Opens against the top of the visible area so the keyboard leaves room. */
-.modal-tall{height:100%;overflow:hidden}
-.modal h2{font-size:19px;letter-spacing:-.5px}
 .icon-button{background:transparent;color:var(--text);font-size:24px;padding:0}
-.results{flex:1 1 auto;min-height:0;overflow:auto;margin:2px -4px 14px;padding:0 4px;overscroll-behavior:contain}
+.results{margin:2px 0 14px}
 .results h3{font-size:10px;font-family:var(--mono);letter-spacing:1.2px;text-transform:uppercase;
   color:var(--muted);margin:15px 0 7px;position:sticky;top:0;background:var(--surface);padding:6px 0}
 .results h3 small{color:var(--kcal)}
@@ -326,10 +311,6 @@ nav button.active svg{stroke-width:2}
 .delete{min-height:44px;min-width:44px}
 .food-card,.chart-card,.insight,.chooser-card{box-shadow:inset 0 1px 0 #ffffff06,0 5px 18px #0001;border:1px solid var(--line-soft)}
 .profile-form section{background:var(--surface);border:1px solid var(--line-soft);border-radius:20px;padding:18px}
-.modal-backdrop{animation:veil-in .18s ease-out}
-.modal-backdrop::before{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-.modal{padding-bottom:max(16px,env(safe-area-inset-bottom));box-shadow:0 -20px 80px #0005,inset 0 1px 0 #ffffff19;animation:sheet-in .3s cubic-bezier(.22,1,.36,1);overscroll-behavior:contain}
-.modal::before{content:'';display:block;width:36px;height:4px;border-radius:3px;background:var(--line);margin:-6px auto 18px}
 .app-shell>main{animation:page-in .22s ease-out}
 .toast,.undo{bottom:calc(100px + env(safe-area-inset-bottom))}
 button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
@@ -344,13 +325,10 @@ input,select,textarea{scroll-margin-bottom:120px}
 }
 @media(hover:hover){button:not(:disabled):hover{filter:brightness(1.12)}}
 @media(max-width:480px){input,select,textarea,.macro-inputs input{font-size:16px}.total-current{font-size:18px}.total-goal{font-size:10px}.totals{gap:10px;padding:18px 14px}}
-@media(min-width:700px){.modal-backdrop{align-items:center;padding:24px}.modal{border-radius:26px}.modal-tall{height:auto;max-height:100%}}
 @keyframes page-in{from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
-@keyframes sheet-in{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:translateY(0)}}
-@keyframes veil-in{from{opacity:0}to{opacity:1}}
 @keyframes added-in{from{transform:scale(.92)}to{transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
-@media(prefers-reduced-transparency:reduce){nav{background:#24252d;backdrop-filter:none;-webkit-backdrop-filter:none}.modal-backdrop::before{backdrop-filter:none;-webkit-backdrop-filter:none;background:#000e}}
+@media(prefers-reduced-transparency:reduce){nav{background:#24252d;backdrop-filter:none;-webkit-backdrop-filter:none}.modal-backdrop{backdrop-filter:none;-webkit-backdrop-filter:none;background:#000e}}
 
 .danger{color:var(--over)}
 button.danger{background:#3a221f;color:#ffb3a7;box-shadow:inset 0 0 0 1px #5a3129}
@@ -383,28 +361,58 @@ button.danger{background:#3a221f;color:#ffb3a7;box-shadow:inset 0 0 0 1px #5a312
 .scan-button{flex:none;display:flex;align-items:center;gap:7px;padding:0 15px;font-size:12px}
 .scan-button svg{width:21px;height:21px;display:block}
 
-.modal-actions{display:flex;align-items:center;gap:10px}
-.modal-actions .chip{padding:7px 13px}
 .sheet-action{display:grid;place-items:center;width:44px;height:44px;flex:none;padding:0;border-radius:13px;background:var(--raised);color:var(--accent-text);box-shadow:inset 0 0 0 1px var(--line)}
 .sheet-action svg{width:20px;height:20px}
-.modal-actions .icon-button{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--raised);color:var(--muted);flex:none}
-.modal-actions{flex:none}
-.modal header{gap:10px}
-.modal h2{min-width:0}
 .profile-form section{display:grid;gap:12px}
 .profile-form .macro-inputs{grid-template-columns:repeat(3,minmax(0,1fr))}
 .chart-card + .food-list{margin-top:14px}
 
-/* One visible sheet, with the search field and confirmation kept reachable. */
-.modal-backdrop{padding-bottom:0}
-.modal{scroll-padding:16px 0 88px}
-.modal input,.modal select,.modal textarea{font-size:16px}
-.modal .quantity-row input{font-size:21px}
-.modal header{position:sticky;top:0;z-index:2;background:var(--surface);padding-block:8px}
-.modal .form-actions{position:sticky;bottom:0;z-index:2;background:var(--surface);padding-block:12px;margin-top:12px}
-.modal.form-sheet{overflow:hidden}
-.modal.form-sheet>.form-sheet-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:0 2px 18px}
-.modal.form-sheet>.form-sheet-actions{position:relative;flex:none;z-index:2;margin:0 -2px;padding:12px 2px 0;background:var(--surface);box-shadow:0 -12px 18px var(--surface)}
-@media(min-width:700px){.modal-backdrop{padding:24px}.modal-tall{height:min(760px,100%)}}
 
 .build{font-family:var(--mono);font-size:10px;color:var(--faint);margin:14px 0 0}
+
+/* ---- sheets ------------------------------------------------------------
+   Nothing below depends on the keyboard. On iOS the keyboard does not resize
+   the layout viewport, so a sheet pinned to it with plain CSS stays exactly
+   where it is while the keyboard opens and closes: there is nothing to jump.
+   Script never sizes or moves a sheet; see src/lib/keyboard.js.            */
+.modal-backdrop{position:fixed;inset:0;z-index:10;display:flex;justify-content:center;align-items:flex-end;background:#000c;animation:veil-in .18s ease-out}
+.modal{position:relative;display:flex;flex-direction:column;width:100%;max-width:620px;min-width:0;min-height:0;background:var(--surface);color:var(--text);outline:none}
+.modal-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px 10px 18px}
+.modal-head h2{margin:0;min-width:0;font-size:19px;letter-spacing:-.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal-actions{flex:none;display:flex;align-items:center;gap:8px}
+.modal-actions .icon-button{display:grid;place-items:center;width:44px;height:44px;flex:none;padding:0;border-radius:50%;background:var(--raised);color:var(--muted);font-size:24px}
+.modal-actions .chip{padding:7px 13px}
+.modal-primary{min-height:44px;padding:0 16px;border-radius:14px;white-space:nowrap}
+.modal-body{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:4px 18px 24px}
+.modal-foot{flex:none;padding:12px 18px max(16px,env(safe-area-inset-bottom));background:var(--surface);box-shadow:0 -12px 18px var(--surface)}
+.modal-foot .form-actions{margin:0}
+.modal input,.modal select,.modal textarea{font-size:16px}
+.modal .quantity-row input{font-size:21px}
+
+/* Page: every sheet someone types into. Full screen and still, actions in the
+   top bar where no keyboard reaches, one scroll area underneath. */
+.modal-page{height:100%;padding-top:env(safe-area-inset-top);animation:page-sheet-in .2s ease-out}
+/* Room below the last field, so any field can be brought above a keyboard
+   by scrolling the sheet rather than by Safari panning the whole screen. */
+.modal-page .modal-body{padding-bottom:calc(42vh + env(safe-area-inset-bottom))}
+/* A search field stays put below the top bar while its results scroll. */
+.modal-page .modal-body>.sticky-search{position:sticky;top:-4px;z-index:2;background:var(--surface);margin:0 -18px 10px;padding:8px 18px 10px}
+
+/* Sheet: pickers and confirmations, where no keyboard ever opens. */
+.modal-backdrop-sheet{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.modal-sheet{max-height:92dvh;border-radius:26px 26px 0 0;box-shadow:0 -20px 80px #0005,inset 0 1px 0 #ffffff19;animation:sheet-in .3s cubic-bezier(.22,1,.36,1)}
+.modal-sheet::before{content:'';display:block;flex:none;width:36px;height:4px;border-radius:3px;background:var(--line);margin:8px auto 0}
+
+@media(min-width:700px){
+  .modal-backdrop{align-items:center;padding:24px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .modal-page,.modal-sheet{height:auto;max-height:min(760px,100%);border-radius:26px;padding-top:0;box-shadow:0 30px 90px #0008,inset 0 0 0 1px var(--line)}
+  .modal-page .modal-body{padding-bottom:24px}
+}
+
+/* While typing, the floating tab bar steps aside instead of riding the keys. */
+nav{transition:opacity .18s ease,transform .18s ease}
+html.typing nav{opacity:0;pointer-events:none;transform:translate(-50%,calc(100% + 28px))}
+
+@keyframes page-sheet-in{from{opacity:0}to{opacity:1}}
+@keyframes sheet-in{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:translateY(0)}}
+@keyframes veil-in{from{opacity:0}to{opacity:1}}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Modal from './Modal.jsx'
+import { numberField } from '../lib/fields.js'
 
 export default function Scanner({ onResult, onClose }) {
   const videoRef = useRef(null); const controls = useRef(null)
@@ -22,7 +23,7 @@ export default function Scanner({ onResult, onClose }) {
     <p className="muted">Apunta al código de barras del producto.</p>
     {error && <p className="error">{error}</p>}
     <form className="search-row" onSubmit={submit}>
-      <input inputMode="numeric" value={manual} onChange={event => setManual(event.target.value)} placeholder="O escribe el código" />
+      <input {...numberField('ean_manual', { inputMode: 'numeric', pattern: '[0-9]*' })} value={manual} onChange={event => setManual(event.target.value)} placeholder="O escribe el código" enterKeyHint="search" />
       <button disabled={!/^[0-9]{6,14}$/.test(manual.trim())}>Buscar</button>
     </form>
   </Modal>
