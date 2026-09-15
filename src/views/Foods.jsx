@@ -95,11 +95,11 @@ export default function Foods({ foods, onFoods }) {
       {!visible.length && <p className="empty">No hay alimentos que coincidan.</p>}
     </div>
 
-    {editing && <Modal title={stored ? 'Editar alimento' : 'Nuevo alimento'} onClose={() => setEditing(null)}>
+    {editing && <Modal title={stored ? 'Editar alimento' : 'Nuevo alimento'} onClose={() => setEditing(null)} className="form-sheet">
       <FoodForm initial={editing} onSave={save} onCancel={() => setEditing(null)}
         onDelete={stored ? () => remove(editing) : undefined} />
     </Modal>}
-    {recipe && <Modal title="Nueva receta" onClose={() => setRecipe(false)}>
+    {recipe && <Modal title="Nueva receta" onClose={() => setRecipe(false)} className="form-sheet">
       <RecipeBuilder foods={foods} onSave={save} onCancel={() => setRecipe(false)} /></Modal>}
     {scanner && <Scanner onResult={barcode} onClose={() => setScanner(false)} />}
   </main>

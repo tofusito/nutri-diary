@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { scaleNutrients, sumNutrients, selectZero } from '../lib/nutrition.js'
 
 const formatNutrient = (key, value) => (key === 'kcal' ? '' : key[0].toUpperCase()) + (value == null ? '—' : Math.round(value)) + (key === 'kcal' ? ' kcal' : 'g')
 
 export default function RecipeBuilder({ foods, onSave, onCancel }) {
+  const formId = useId()
   const [name, setName] = useState('')
   const [yieldGrams, setYieldGrams] = useState('')
   const [parts, setParts] = useState([])
@@ -52,7 +53,8 @@ export default function RecipeBuilder({ foods, onSave, onCancel }) {
     }
   }
 
-  return <form className="form" onSubmit={save}>
+  return <>
+  <form id={formId} className="form form-sheet-scroll" onSubmit={save}>
     <p className="muted">Las cantidades de ingredientes se convierten a valores por 100 g del plato terminado.</p>
     <label>Nombre de la receta<input required value={name} onChange={event => setName(event.target.value)} placeholder="Ej. Lentejas caseras" /></label>
     <label>Rendimiento final (g)<input required type="number" min="1" inputMode="decimal" value={yieldGrams} onFocus={selectZero} onChange={event => setYieldGrams(event.target.value)} /></label>
@@ -67,6 +69,7 @@ export default function RecipeBuilder({ foods, onSave, onCancel }) {
     </div>)}
     <div className="recipe-total"><span>Por 100 g</span><b>{Object.entries(per100).map(([key, value]) => formatNutrient(key, value)).join(' · ')}</b></div>
     {error && <p className="error" role="alert">{error}</p>}
-    <footer className="form-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button disabled={!parts.length || saving}>{saving ? 'Guardando…' : 'Guardar receta'}</button></footer>
   </form>
+  <footer className="form-actions form-sheet-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="submit" form={formId} disabled={!parts.length || saving}>{saving ? 'Guardando…' : 'Guardar receta'}</button></footer>
+  </>
 }

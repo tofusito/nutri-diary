@@ -135,7 +135,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
   }, [local, result])
   const external = useMemo(() => (result.external || []).filter(item => hasKcal(item) && !mine.some(food => sameFood(food, item))), [result, mine])
 
-  if (creating) return <Modal title="Nuevo alimento" onClose={() => setCreating(null)}>
+  if (creating) return <Modal title="Nuevo alimento" onClose={() => setCreating(null)} className="form-sheet">
     <FoodForm initial={creating} onCancel={() => setCreating(null)} onSave={async food => {
       try { const saved = await api('/api/foods', { method: 'POST', body: JSON.stringify(food) }); onCreated(saved); setCreating(null); choose(saved) }
       catch (error) { throw error }

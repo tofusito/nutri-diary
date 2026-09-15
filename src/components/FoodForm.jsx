@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { api } from '../lib/api.js'
 import { emptyFood, number, selectZero } from '../lib/nutrition.js'
 import { recognizeLabel } from '../lib/ocr.js'
@@ -13,6 +13,7 @@ const confidenceText = { high: 'alta', medium: 'media', low: 'baja' }
  *  portion, favorite, label OCR and the private QR stay behind "Más opciones".
  *  Whatever is saved here goes to the shared catalog every profile searches. */
 export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
+  const formId = useId()
   const [food, setFood] = useState(initial || emptyFood())
   const [ocr, setOcr] = useState('')
   const [loading, setLoading] = useState(false)
@@ -65,7 +66,7 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
   const unit = food.basis === 'ml' ? 'ml' : 'g'
 
   return <>
-  <form className="form" onSubmit={submit}>
+  <form id={formId} className="form form-sheet-scroll" onSubmit={submit}>
     <section className="ai-assistant" aria-labelledby="food-ai-title">
       <div className="ai-assistant-head"><div><p className="eyebrow">ASISTENTE</p><h3 id="food-ai-title">Rellenar con IA</h3></div><span className="ai-badge">WEB</span></div>
       <label>Qué alimento o producto buscas<input value={aiQuery} onChange={event => setAiQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); fillWithAi() } }} placeholder="Ej. Pan de hamburguesa Hacendado" enterKeyHint="search" autoComplete="off" /></label>
@@ -116,8 +117,8 @@ export default function FoodForm({ initial, onSave, onCancel, onDelete }) {
       : <button type="button" className="link-button danger" onClick={() => setConfirming(true)}>Eliminar de la biblioteca</button>)}
 
     {error && <p className="error" role="alert">{error}</p>}
-    <footer className="form-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="submit" disabled={saving || loading}>{saving ? 'Guardando…' : 'Guardar alimento'}</button></footer>
   </form>
+  <footer className="form-actions form-sheet-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="submit" form={formId} disabled={saving || loading}>{saving ? 'Guardando…' : 'Guardar alimento'}</button></footer>
   {scanning && <Scanner onResult={code => { set('barcode', code); setScanning(false) }} onClose={() => setScanning(false)} />}
   </>
 }

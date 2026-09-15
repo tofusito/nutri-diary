@@ -61,6 +61,15 @@ try {
   await tab('Alimentos'); await page.getByRole('button', { name: '+ Nuevo', exact: true }).click();
   const foodDialog = page.getByRole('dialog');
   await foodDialog.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished)));
+  assert.equal(await foodDialog.locator('.form-sheet-scroll').count(), 1, 'food content should have one dedicated scroll area');
+  assert.equal(await foodDialog.locator('.form-sheet-actions').count(), 1, 'food actions should stay outside the scroll area');
+  assert.ok(await foodDialog.locator('.form-sheet-scroll').evaluate(el => el.scrollHeight > el.clientHeight), 'long food form should scroll independently from its actions');
+  const foodSheetLayout = await foodDialog.evaluate(el => {
+    const form = el.querySelector('.form-sheet-scroll').getBoundingClientRect();
+    const actions = el.querySelector('.form-sheet-actions').getBoundingClientRect();
+    return { formBottom: form.bottom, actionsTop: actions.top };
+  });
+  assert.ok(foodSheetLayout.formBottom <= foodSheetLayout.actionsTop + 1, 'food actions must not cover the form');
   assert.equal(await page.getByLabel('Nombre', { exact: true }).evaluate(element => document.activeElement === element), false, 'new-food sheet must not open the keyboard');
   // Expanded fields used to force the grid wider than the phone. Focusing
   // Brand then let Safari pan sideways, cutting off the title and controls.

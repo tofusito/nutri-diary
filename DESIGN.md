@@ -28,6 +28,7 @@ Keep the red bowl variant consistent across:
 - Floating notifications and reversible deletion notices dismiss after five seconds. The undo action remains available for that full interval; validation errors inside forms remain until corrected.
 - A habitual food already present in the selected meal stays in place with a persistent check and its quick-add button disabled. Tapping the row still opens the quantity view for an intentional second serving.
 - The add-food sheet uses a plus icon for manual food creation and overlapping sheets for copying the previous day's selected meal. Both have 44 pixel touch targets and accessible labels. Desktop tooltips are supplementary; mobile help refers to the plus, and the copy sheet explains which day's meals will be copied.
+- Long food and recipe sheets keep the header and action footer outside the scrollable form. This leaves one stable content viewport for Safari's keyboard resize, so fields remain reachable and the footer never covers form content.
 
 Validate text pairs against [WCAG contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html), and respect [reduced motion](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion). Run `npm run build`, `npm run check` and `npm run screenshots` to verify the mobile flows and refresh documentation previews.
 
