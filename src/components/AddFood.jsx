@@ -10,6 +10,7 @@ import FoodForm from './FoodForm.jsx'
 const sameFood = (a, b) => a.barcode && b.barcode ? a.barcode === b.barcode && a.name === b.name : a.name === b.name && (a.brand || '') === (b.brand || '')
 const hasKcal = food => Number.isFinite(food?.nutrients?.kcal)
 const searchableText = food => [food.name, food.brand || '', food.barcode || ''].join(' ').toLowerCase()
+const NOTIFICATION_DURATION_MS = 5_000
 
 /** Search sheet used to log a food: always looks in the personal catalog first,
  *  then in Open Food Facts. A barcode can belong to several products, so every
@@ -87,7 +88,7 @@ export default function AddFood({ meal, foods, profile, profiles, onAdd, onCreat
       setQuickAdded(foodId)
       setNotice(`${row.food.name} añadido · ${row.quantity} ${row.food.basis}`)
       clearTimeout(noticeTimer.current)
-      noticeTimer.current = setTimeout(() => { setQuickAdded(''); setNotice('') }, 1_800)
+      noticeTimer.current = setTimeout(() => { setQuickAdded(''); setNotice('') }, NOTIFICATION_DURATION_MS)
     } catch (error) {
       setMessage(error.message)
     } finally {

@@ -13,6 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 const PROFILE_KEY = 'nutri-profile'
 // Two phones on one diary: often enough to feel live, rare enough to ignore.
 const SYNC_INTERVAL_MS = 20_000
+const NOTIFICATION_DURATION_MS = 5_000
 
 function Login({ onLogin }) {
   const [password, setPassword] = useState(''); const [error, setError] = useState('')
@@ -107,6 +108,18 @@ export default function App() {
     addEventListener('online', wake)
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', wake); removeEventListener('online', wake) }
   }, [auth, date, profileId])
+  useEffect(() => {
+    // Once the diary is open this error is a floating notification. Errors on
+    // the login and initial-loading screens stay visible beside their retry.
+    if (!error || !profile) return
+    const timer = setTimeout(() => setError(''), NOTIFICATION_DURATION_MS)
+    return () => clearTimeout(timer)
+  }, [error, profile?.id])
+  useEffect(() => {
+    if (!undo) return
+    const timer = setTimeout(() => setUndo(null), NOTIFICATION_DURATION_MS)
+    return () => clearTimeout(timer)
+  }, [undo])
 
   const selectProfile = id => {
     setProfileId(id)
@@ -202,9 +215,9 @@ export default function App() {
   if (profiles === null) return <main className="login">{error ? <><p className="error" role="alert">{error}</p><button onClick={load}>Reintentar</button></> : <p className="muted">Cargando perfiles…</p>}</main>
   if (!profile) return <ChooseProfile profiles={profiles} onSelect={selectProfile} onCreate={createProfile} />
   return <div className="app-shell">
-    {error && <div className="toast error">{error}<button onClick={() => setError('')}>×</button></div>}
+    {error && <div className="toast error" role="alert">{error}<button onClick={() => setError('')} aria-label="Cerrar notificación">×</button></div>}
     <ErrorBoundary key={tab}>{view}</ErrorBoundary>
-    {undo && <div className="undo">Entrada eliminada <button onClick={restore}>Deshacer</button><button onClick={() => setUndo(null)}>×</button></div>}
+    {undo && <div className="undo" role="status" aria-live="polite">Entrada eliminada <button onClick={restore}>Deshacer</button><button onClick={() => setUndo(null)} aria-label="Cerrar notificación">×</button></div>}
     {copyPlan && <Modal title="Copiar el día anterior" onClose={() => setCopyPlan(null)}>
       <p>Se añadirán <b>{copyPlan.missing.length}</b> entrada{copyPlan.missing.length > 1 ? 's' : ''} del día anterior.</p>
       {copyPlan.skipped > 0 && <p className="muted">{copyPlan.skipped} ya {copyPlan.skipped > 1 ? 'están' : 'está'} en este día y se {copyPlan.skipped > 1 ? 'omiten' : 'omite'}.</p>}

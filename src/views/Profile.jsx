@@ -4,6 +4,7 @@ import Icon from '../components/Icon.jsx'
 
 const activities = [[1.2, 'Sedentario', 'poco o nada de ejercicio'], [1.375, 'Ligera', '1-3 días por semana'], [1.55, 'Moderada', '3-5 días por semana'], [1.725, 'Alta', '6-7 días por semana'], [1.9, 'Muy alta', 'trabajo físico o doble sesión']]
 const blank = name => ({ id: crypto.randomUUID(), name, carbs: 0, protein: 0, fat: 0, sex: 'male', activity: 1.55 })
+const NOTIFICATION_DURATION_MS = 5_000
 
 export default function Profile({ profiles, profileId, onSave, onCreate, onDelete, onSwitch, onLogout, pending }) {
   const active = profiles.find(item => item.id === profileId) || profiles[0] || blank('')
@@ -14,6 +15,11 @@ export default function Profile({ profiles, profileId, onSave, onCreate, onDelet
   const [asking, setAsking] = useState('')
   const [typed, setTyped] = useState('')
   useEffect(() => { setDraft(active); setCreating(false); setMessage(''); setAsking(''); setTyped('') }, [active.id])
+  useEffect(() => {
+    if (message !== 'Perfil guardado.') return
+    const timer = setTimeout(() => setMessage(''), NOTIFICATION_DURATION_MS)
+    return () => clearTimeout(timer)
+  }, [message])
 
   const set = (key, value) => setDraft(previous => ({ ...previous, [key]: number(value) }))
   const validMacros = ['carbs', 'protein', 'fat'].every(key => Number.isFinite(draft[key]) && draft[key] >= 0)

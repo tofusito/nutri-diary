@@ -120,6 +120,9 @@ try {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   assert.equal(syncedEntries.length, 2, 'offline entry was not synchronized');
+  await page.locator('.entry').filter({ hasText: '60 g' }).getByRole('button', { name: /Eliminar/ }).click();
+  await page.locator('.undo').waitFor({ state: 'visible' });
+  await page.locator('.undo').waitFor({ state: 'hidden', timeout: 6_000 });
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     for (const name of ['Hoy', 'Alimentos', 'Progreso', 'Perfil']) {
@@ -246,5 +249,5 @@ try {
   await page.screenshot({ path: '/tmp/nutri-keyboard-review.png' });
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   assert.deepEqual(errors, []);
-  console.log('PASS: macro editing; retained drafts; invalid portions; offline sync; responsive tabs; live diary updates; search in reduced and offset visual viewports; barcode entry; protected profile deletion; no uncaught errors.');
+  console.log('PASS: macro editing; retained drafts; invalid portions; timed notifications; offline sync; responsive tabs; live diary updates; search in reduced and offset visual viewports; barcode entry; protected profile deletion; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }
