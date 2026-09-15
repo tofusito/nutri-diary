@@ -74,7 +74,7 @@ export default function Foods({ foods, onFoods }) {
     <div className="page-heading"><div><p className="eyebrow">BIBLIOTECA</p><h1>Alimentos</h1></div>
       <button onClick={() => setEditing(blank(''))}>+ Nuevo</button></div>
 
-    <div className="search-row">
+    <div className="search-row library-search">
       <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar en tu biblioteca" />
       <button className="secondary" onClick={() => setRecipe(true)}>Receta</button>
       <button className="secondary" onClick={() => setScanner(true)}>Escanear</button>

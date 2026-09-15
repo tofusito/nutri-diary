@@ -25,15 +25,19 @@ Nutri's visual identity is built around a warm cream bowl, golden noodles and ch
 </tr>
 </table>
 
+More mobile views: [usual foods](docs/screens/frequent.png) · [library](docs/screens/foods.png) · [create food](docs/screens/create.png) · [profile](docs/screens/profile.png).
+
 ## What it does
 
 Carbohydrates, protein and fat in grams. Energy is always `4 × carbs + 4 × protein + 9 × fat`, so your goal is whatever your macros add up to and nothing recalculates it behind your back.
 
-The home screen is a single day split into five named meals — Desayuno, Comida, Merienda, Cena, Snacks — because nobody remembers what time they ate. The totals sit on top: what you have eaten against your goal, and underneath the difference. **`−N` in green** while there is room left, **`+N` in red** once you are past it. What is unknown reads `—`, never zero.
+The home screen is a single day split into five named meals — Desayuno, Comida, Merienda, Cena, Snacks — because nobody remembers what time they ate. The totals sit on top: what you have eaten against your goal, and underneath the difference. **`−N` in warm grey** while there is room left, **`+N` in peach** once you are past it. What is unknown reads `—`, never zero.
 
 Each macro keeps one colour everywhere: hidratos amber, proteínas blue, grasas pink. You read a number without hunting for its label.
 
 ### Visual identity
+
+Graphite backgrounds, charcoal cards and warm-white typography carry the diary. Vermilion buttons, soft red selection and a translucent floating navigation bar connect the interface to the bowl icon. Energy stays neutral cream; carbohydrates, protein and fat keep their distinct colours. Sheets share consistent controls, visible focus and short motion that respects reduced-motion preferences.
 
 The app icon is intentionally simple and high-contrast: a full-bleed red rounded-square background carries the cream bowl as the focal point, with golden noodles and dark chopsticks providing the small-size detail. Keep the red bowl variant when regenerating the PWA assets:
 

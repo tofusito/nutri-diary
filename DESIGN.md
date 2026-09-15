@@ -17,11 +17,16 @@ Keep the red bowl variant consistent across:
 
 ## Interface direction
 
-- Use the dark graphite canvas as the main surface and the red icon as a warm accent, not as a replacement for the app's dark theme.
+- Use graphite `#101114`, charcoal cards `#1c1d21` and warm-white text `#f5f1e9`.
+- Primary actions use vermilion `#c9362b` with warm-white `#fff8f0` labels. Focus, links and active navigation use the lighter `#ff9588` for contrast against dark surfaces. Selected controls use translucent red with a fine red outline.
+- Energy and remaining amounts use neutral cream; colour is reserved for macro identity, actions and explicit feedback.
 - Keep cards layered, rounded and softly outlined so sheets and content feel native on a phone.
 - Preserve the established macro colours: amber for carbohydrates, blue for protein and pink for fat.
 - Prefer spacing and hierarchy over extra decoration. Motion should be brief and respect `prefers-reduced-motion`.
 - Treat the add-food sheet as a mobile-first flow: stable positioning, a scrollable result area and controls that remain reachable while the keyboard is open.
+- Add and close controls have 44 pixel targets. Confirmation uses a check mark and errors use an exclamation mark alongside explanatory text. Destructive confirmations have an outlined warning surface.
+
+Validate text pairs against [WCAG contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html), and respect [reduced motion](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion). Run `npm run build`, `npm run check` and `npm run screenshots` to verify the mobile flows and refresh documentation previews.
 
 ## PWA cache
 

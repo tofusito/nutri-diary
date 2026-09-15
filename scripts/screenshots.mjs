@@ -73,11 +73,12 @@ await settle();
 await page.screenshot({ path: new URL('today.png', out).pathname });
 
 await page.getByRole('button', { name: 'Añadir a Cena', exact: true }).click();
+await settle();
+await page.screenshot({ path: new URL('frequent.png', out).pathname });
 await page.locator('.result-main').filter({ hasText: 'Salmón' }).first().click();
 await page.locator('.also-for input[type=checkbox]').first().check();
 await settle();
 await page.screenshot({ path: new URL('add.png', out).pathname });
-await page.getByRole('button', { name: 'Cancelar', exact: true }).click().catch(() => {});
 await page.keyboard.press('Escape').catch(() => {});
 
 await page.goto(base);
@@ -85,6 +86,19 @@ await page.getByRole('navigation').waitFor({ state: 'visible' });
 await tab('Progreso');
 await settle();
 await page.screenshot({ path: new URL('progress.png', out).pathname });
+
+await tab('Alimentos');
+await settle();
+await page.screenshot({ path: new URL('foods.png', out).pathname });
+await page.getByRole('button', { name: '+ Nuevo', exact: true }).click();
+await settle();
+await page.screenshot({ path: new URL('create.png', out).pathname });
+await page.keyboard.press('Escape');
+await tab('Perfil');
+await settle();
+await page.screenshot({ path: new URL('profile.png', out).pathname });
+await page.emulateMedia({ reducedMotion: 'reduce' });
+if (await page.locator('main').evaluate(el => getComputedStyle(el).animationName) !== 'none') throw new Error('Reduced motion must disable page animation');
 
 await browser.close();
 server.close();
