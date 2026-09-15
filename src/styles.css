@@ -21,6 +21,7 @@ body{margin:0;min-width:320px;color:var(--text);
     var(--bg);
   background-attachment:fixed}
 button,input,select,textarea{font:inherit}
+input,select,textarea{font-size:16px}
 button{border:0;cursor:pointer;background:var(--accent);color:var(--ink);border-radius:13px;padding:12px 15px;font-weight:800;transition:filter .15s,transform .1s,background-color .18s}
 button:active{transform:scale(.985)}
 button:disabled{opacity:.4;cursor:not-allowed}
@@ -116,7 +117,7 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 .food-macros{grid-column:1/-1;border-top:1px solid var(--line-soft);padding-top:9px;font-size:11px;color:var(--muted)}
 
 /* ---- modal / add sheet ---- */
-.modal-backdrop{position:fixed;left:0;right:0;top:var(--sheet-top,0px);height:var(--sheet-height,100dvh);z-index:10;display:flex;align-items:end;justify-content:center;
+.modal-backdrop{position:fixed;left:var(--sheet-left,0px);width:var(--sheet-width,100%);top:var(--sheet-top,0px);height:var(--sheet-height,100dvh);z-index:10;display:flex;align-items:end;justify-content:center;
   padding-top:env(safe-area-inset-top);isolation:isolate}
 /* The veil bleeds well past its box: if a measurement is ever off, what shows
    is the veil and not the diary underneath. */
@@ -124,7 +125,7 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 .modal-backdrop::before{z-index:-1;pointer-events:none}
 /* Continue the sheet below the visual viewport, behind translucent iOS UI. */
 .modal-backdrop::after{content:'';position:absolute;top:100%;left:0;right:0;height:100lvh;background:var(--surface);pointer-events:none}
-.modal{position:relative;max-width:620px;width:100%;min-height:0;max-height:100%;overflow:auto;display:flex;flex-direction:column;background:var(--surface);
+.modal{position:relative;max-width:620px;width:100%;min-width:0;min-height:0;max-height:100%;overflow:auto;display:flex;flex-direction:column;background:var(--surface);
   box-shadow:inset 0 0 0 1px var(--line);border-radius:26px 26px 0 0;padding:18px 18px 26px}
 .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex:none}
 .modal>*{flex:none}
@@ -201,11 +202,12 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 .ai-sources-label{font-size:10px;color:var(--muted);font-weight:700}
 .ai-sources{display:grid;gap:4px;margin:5px 0 0;padding-left:17px}
 .ai-sources a{display:block;max-width:100%;overflow:hidden;color:var(--accent-text);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
-.form label{display:grid;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
-.form fieldset{border:1px solid var(--line);border-radius:14px;padding:13px;margin:0}
+.form label{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
+.form,.form>*{min-width:0;overflow-wrap:anywhere}
+.form fieldset{min-width:0;border:1px solid var(--line);border-radius:14px;padding:13px;margin:0}
 .form legend{font-size:11px;color:var(--muted);padding:0 5px}
-.two-col,.macro-inputs{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
-.macro-inputs{grid-template-columns:repeat(4,1fr)}
+.two-col,.macro-inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.macro-inputs{grid-template-columns:repeat(4,minmax(0,1fr))}
 .macro-inputs label{font-size:10px}
 .macro-inputs input{min-width:0}
 .macro-inputs small{font-size:10px;color:var(--faint);font-weight:500}
@@ -300,7 +302,7 @@ nav button.active svg{stroke-width:2}
 .login>p:not(.eyebrow){color:var(--muted);margin-bottom:28px}
 
 @media(max-width:340px){
-  .macro-inputs{grid-template-columns:repeat(2,1fr)}
+  .macro-inputs{grid-template-columns:repeat(2,minmax(0,1fr))}
   .totals{grid-template-columns:repeat(2,1fr);gap:16px}
 }
 

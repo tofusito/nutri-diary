@@ -8,7 +8,7 @@ export default function Modal({ title, children, onClose, tall = false, action =
     const previous = document.activeElement
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    if (!dialog.current.contains(document.activeElement)) dialog.current.focus()
+    if (!dialog.current.contains(document.activeElement)) dialog.current.focus({ preventScroll: true })
     const keydown = event => {
       // Nested sheets own their own focus and Escape handling.
       if (dialog.current !== [...document.querySelectorAll('[role="dialog"]')].at(-1)) return
@@ -21,7 +21,7 @@ export default function Modal({ title, children, onClose, tall = false, action =
       else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) { event.preventDefault(); first.focus() }
     }
     document.addEventListener('keydown', keydown)
-    return () => { document.body.style.overflow = overflow; document.removeEventListener('keydown', keydown); if (previous?.isConnected) previous.focus() }
+    return () => { document.body.style.overflow = overflow; document.removeEventListener('keydown', keydown); if (previous?.isConnected) previous.focus({ preventScroll: true }) }
   }, [])
   return createPortal(<div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section ref={dialog} tabIndex={-1} className={`modal ${tall ? 'modal-tall' : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.stopPropagation()}><header><h2>{title}</h2><div className="modal-actions">{action}<button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar">×</button></div></header>{children}</section></div>, document.body)
 }

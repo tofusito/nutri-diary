@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { chromium } from '@playwright/test';
+import { chromium, webkit } from '@playwright/test';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { MongoClient } from 'mongodb';
 import express from 'express';
@@ -14,7 +14,7 @@ app.use(express.static(new URL('../dist', import.meta.url).pathname));
 const server = app.listen(0, '127.0.0.1');
 await new Promise(resolve => server.once('listening', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch();
+const browser = await (process.env.BROWSER === 'webkit' ? webkit : chromium).launch();
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
 const page = await context.newPage();
 const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -23,6 +23,22 @@ const request = async (path, method = 'GET', body) => {
   assert.ok(r.ok); return r.json();
 };
 const tab = name => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+const checkSheetControls = async () => {
+  const sheet = page.getByRole('dialog').last();
+  await sheet.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 420 });
+    for (const input of await sheet.locator('input:not(:disabled):not([type="file"]),select,textarea').all()) {
+      if (!await input.isVisible()) continue;
+      await input.focus();
+      assert.ok(await input.evaluate(el => {
+        const sheet = el.closest('[role="dialog"]'), box = el.getBoundingClientRect(), panel = sheet.getBoundingClientRect();
+        return sheet.scrollWidth <= sheet.clientWidth + 1 && box.left >= panel.left - 1 && box.right <= panel.right + 1;
+      }), 'sheet fields must stay inside the panel with the keyboard open');
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+};
 try {
   const [profile] = await request('/api/profiles');
   const diaryDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Madrid' }).format(new Date());
@@ -46,16 +62,42 @@ try {
   const foodDialog = page.getByRole('dialog');
   await foodDialog.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished)));
   assert.equal(await page.getByLabel('Nombre', { exact: true }).evaluate(element => document.activeElement === element), false, 'new-food sheet must not open the keyboard');
-  for (const [height, offsetTop] of [[420, 0], [360, 80], [844, 0]]) {
-    await page.evaluate(({ height, offsetTop }) => {
+  // Expanded fields used to force the grid wider than the phone. Focusing
+  // Brand then let Safari pan sideways, cutting off the title and controls.
+  await page.getByText('Más opciones', { exact: true }).click();
+  for (const width of [320, 390, 430, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.getByLabel('Marca', { exact: true }).fill('Brüggen (Mercadona) '.repeat(8));
+    for (const field of await foodDialog.locator('input:not([type="file"]),select').all()) {
+      await field.focus();
+      const fits = await field.evaluate(el => {
+        const sheet = el.closest('[role="dialog"]');
+        const box = el.getBoundingClientRect(), panel = sheet.getBoundingClientRect();
+        return sheet.scrollWidth <= sheet.clientWidth + 1 && box.left >= panel.left && box.right <= panel.right;
+      });
+      assert.ok(fits, `focused form control overflows at ${width}px: ${await field.getAttribute('type')}`);
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByText('Más opciones', { exact: true }).click();
+  for (const [height, offsetTop, width, offsetLeft] of [[420, 0, 390, 0], [360, 80, 350, 40], [844, 0, 390, 0]]) {
+    await page.evaluate(({ height, offsetTop, width, offsetLeft }) => {
       Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: height });
       Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: offsetTop });
+      Object.defineProperty(window.visualViewport, 'width', { configurable: true, value: width });
+      Object.defineProperty(window.visualViewport, 'offsetLeft', { configurable: true, value: offsetLeft });
       window.visualViewport.dispatchEvent(new Event('resize'));
-    }, { height, offsetTop });
+    }, { height, offsetTop, width, offsetLeft });
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const box = await foodDialog.boundingBox();
     assert.ok(box.y >= offsetTop - 1 && box.y + box.height <= offsetTop + height + 1, `new-food sheet must fit the visible viewport at ${height}px`);
+    assert.ok(box.x >= offsetLeft - 1 && box.x + box.width <= offsetLeft + width + 1, 'new-food sheet must follow horizontal Safari pan');
   }
+  await page.evaluate(() => {
+    delete window.visualViewport.width;
+    delete window.visualViewport.offsetLeft;
+    window.visualViewport.dispatchEvent(new Event('resize'));
+  });
   await page.evaluate(() => {
     Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: 844 });
     Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: 0 });
@@ -83,6 +125,9 @@ try {
   await page.getByRole('button', { name: 'Guardar alimento', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   const [food] = await request('/api/foods'); assert.equal(food.nutrients.protein, 0); assert.equal(food.nutrients.fat, null);
+  await page.getByRole('button', { name: 'Receta', exact: true }).click();
+  await checkSheetControls();
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await request('/api/foods', 'POST', { id: randomUUID(), name: 'No kcal stability', basis: 'g', nutrients: { kcal: null, carbs: null, protein: 2, fat: null } });
   await page.reload(); await page.getByRole('navigation').waitFor({ state: 'visible' });
   await page.getByRole('button', { name: 'Añadir a Desayuno', exact: true }).click();
@@ -94,6 +139,7 @@ try {
   await page.getByRole('button', { name: 'Añadir', exact: true }).click();
   await page.getByText('Introduce una cantidad mayor que cero para cada persona.', { exact: true }).waitFor();
   await page.getByLabel('Cantidad', { exact: true }).fill('80');
+  await checkSheetControls();
   await page.route('**/api/entries?*', async route => route.request().method() === 'POST' ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Registro fallido"}' }) : route.continue());
   await page.getByRole('button', { name: 'Añadir', exact: true }).click();
   await page.getByText('Registro fallido', { exact: true }).waitFor();
@@ -175,6 +221,7 @@ try {
   await page.getByRole('button', { name: 'Escanear el código de barras', exact: true }).click();
   const manual = page.getByPlaceholder('O escribe el código');
   await manual.waitFor();
+  await checkSheetControls();
   await manual.fill('8410014477743');
   await page.getByRole('button', { name: 'Buscar', exact: true }).click();
   await manual.waitFor({ state: 'hidden' });
@@ -205,6 +252,7 @@ try {
   await share.waitFor();
   await share.check();
   await page.getByLabel('Cantidad para Segundo perfil', { exact: true }).fill('65');
+  await checkSheetControls();
   await page.getByRole('button', { name: 'Guardar', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   const sharedEntries = await request(`/api/entries?date=${diaryDate}&profile=${second.id}`);
@@ -237,6 +285,8 @@ try {
 
   const zeroMacro = page.getByLabel('Hidratos', { exact: true });
   await zeroMacro.click();
+  // The zero-selection handler settles after the browser's pointer focus.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await zeroMacro.pressSequentially('37');
   assert.equal(await zeroMacro.inputValue(), '37', 'zero macro should be replaced on first typing');
   await tab('Hoy');
