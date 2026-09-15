@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, clearPrivateCache, pendingEntries, syncPendingEntries } from './lib/api.js'
-import { localDate } from './lib/nutrition.js'
+import { localDate, meals } from './lib/nutrition.js'
 import Today from './views/Today.jsx'
 import Foods from './views/Foods.jsx'
 import Progress from './views/Progress.jsx'
@@ -164,25 +164,41 @@ export default function App() {
     finally { writes.current -= 1 }
   }
   const restore = async () => { if (!undo) return; const entry = undo; setUndo(null); try { await add(entry) } catch (err) { setError(err.message); setUndo(entry) } }
-  /** Copying the previous day is easy to press twice, so it asks first and
-   *  leaves out anything already registered instead of duplicating the day. */
+  /** Copy the previous day after choosing meals. A meal-specific trigger
+   *  preselects that meal; the full-day trigger starts with every meal. */
   const signature = entry => `${entry.meal}|${entry.food.name}|${entry.quantity}`
-  const copy = async () => {
+  const copy = async (preferredMeal = null) => {
     const previousDay = new Date(`${date}T12:00:00`); previousDay.setDate(previousDay.getDate() - 1)
     try {
-      const prior = await api(withScope(`/api/entries?date=${localDate(previousDay)}`))
+      const previousDate = localDate(previousDay)
+      const prior = await api(withScope(`/api/entries?date=${previousDate}`))
       if (!prior.length) return setError('El día anterior está vacío.')
       const already = new Set(entries.map(signature))
       const missing = prior.filter(entry => !already.has(signature(entry)))
+      const mealOptions = meals
+        .map(name => ({ name, total: prior.filter(entry => entry.meal === name).length, missing: missing.filter(entry => entry.meal === name).length }))
+        .filter(option => option.total)
+      const available = mealOptions.filter(option => option.missing)
+      if (preferredMeal && !mealOptions.some(option => option.name === preferredMeal)) {
+        return setError(`No hay entradas de ${preferredMeal.toLowerCase()} en el día anterior.`)
+      }
+      if (preferredMeal && !available.some(option => option.name === preferredMeal)) {
+        return setError(`Ya tienes registrado todo ${preferredMeal.toLowerCase()} del día anterior.`)
+      }
       if (!missing.length) return setError('Ya tienes registrado todo lo del día anterior.')
-      setCopyPlan({ missing, skipped: prior.length - missing.length })
+      const skipped = preferredMeal
+        ? prior.filter(entry => entry.meal === preferredMeal && already.has(signature(entry))).length
+        : prior.length - missing.length
+      setCopyPlan({ previousDate, missing, skipped, mealOptions, selectedMeals: preferredMeal ? [preferredMeal] : available.map(option => option.name) })
     } catch (err) { setError(err.message) }
   }
   const confirmCopy = async () => {
     const plan = copyPlan
     setCopyPlan(null)
     if (!plan) return
-    try { for (const entry of plan.missing) await add({ ...entry, id: crypto.randomUUID(), date }) }
+    const selected = plan.missing.filter(entry => plan.selectedMeals.includes(entry.meal))
+    if (!selected.length) return setError('Elige al menos una comida para copiar.')
+    try { for (const entry of selected) await add({ ...entry, id: crypto.randomUUID(), date }) }
     catch (err) { setError(err.message) }
   }
   const saveProfile = async value => {
@@ -218,11 +234,21 @@ export default function App() {
     {error && <div className="toast error" role="alert">{error}<button onClick={() => setError('')} aria-label="Cerrar notificación">×</button></div>}
     <ErrorBoundary key={tab}>{view}</ErrorBoundary>
     {undo && <div className="undo" role="status" aria-live="polite">Entrada eliminada <button onClick={restore}>Deshacer</button><button onClick={() => setUndo(null)} aria-label="Cerrar notificación">×</button></div>}
-    {copyPlan && <Modal title="Copiar el día anterior" onClose={() => setCopyPlan(null)}>
-      <p>Se añadirán <b>{copyPlan.missing.length}</b> entrada{copyPlan.missing.length > 1 ? 's' : ''} del día anterior.</p>
+    {copyPlan && <Modal title="Copiar del día anterior" onClose={() => setCopyPlan(null)}>
+      <p>Elige qué comidas quieres copiar del día anterior.</p>
+      <fieldset className="copy-meals"><legend>Comidas</legend>
+        {copyPlan.mealOptions.map(option => <label className="copy-meal-option" key={option.name}>
+          <input type="checkbox" checked={copyPlan.selectedMeals.includes(option.name)} disabled={!option.missing}
+            onChange={() => setCopyPlan(current => ({ ...current, selectedMeals: current.selectedMeals.includes(option.name)
+              ? current.selectedMeals.filter(name => name !== option.name)
+              : [...current.selectedMeals, option.name] }))} />
+          <span><b>{option.name}</b><small>{option.missing ? `${option.missing} alimento${option.missing > 1 ? 's' : ''} para añadir` : 'Ya está copiada'}</small></span>
+        </label>)}
+      </fieldset>
+      <p>Se añadirán <b>{copyPlan.missing.filter(entry => copyPlan.selectedMeals.includes(entry.meal)).length}</b> entrada{copyPlan.missing.filter(entry => copyPlan.selectedMeals.includes(entry.meal)).length !== 1 ? 's' : ''}.</p>
       {copyPlan.skipped > 0 && <p className="muted">{copyPlan.skipped} ya {copyPlan.skipped > 1 ? 'están' : 'está'} en este día y se {copyPlan.skipped > 1 ? 'omiten' : 'omite'}.</p>}
-      <ul className="plan-list">{copyPlan.missing.map(entry => <li key={entry.id}>{entry.meal} · {entry.food.name} · {entry.quantity} {entry.food.basis}</li>)}</ul>
-      <footer className="form-actions"><button className="secondary" onClick={() => setCopyPlan(null)}>Cancelar</button><button onClick={confirmCopy}>Añadir</button></footer>
+      <ul className="plan-list">{copyPlan.missing.filter(entry => copyPlan.selectedMeals.includes(entry.meal)).map(entry => <li key={entry.id}>{entry.meal} · {entry.food.name} · {entry.quantity} {entry.food.basis}</li>)}</ul>
+      <footer className="form-actions"><button className="secondary" onClick={() => setCopyPlan(null)}>Cancelar</button><button disabled={!copyPlan.selectedMeals.some(name => copyPlan.missing.some(entry => entry.meal === name))} onClick={confirmCopy}>Añadir</button></footer>
     </Modal>}
     <nav aria-label="Navegación principal" style={{ '--active-tab': ['Hoy', 'Alimentos', 'Progreso', 'Perfil'].indexOf(tab) }}>{['Hoy', 'Alimentos', 'Progreso', 'Perfil'].map(item =>
       <button key={item} className={tab === item ? 'active' : ''} onClick={() => { setTab(item); window.scrollTo({ top: 0, behavior: 'instant' }) }} aria-current={tab === item ? 'page' : undefined}>

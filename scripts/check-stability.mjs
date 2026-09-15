@@ -202,7 +202,7 @@ try {
     const box = await sheet.boundingBox();
     assert.ok(box.y >= -1, `sheet starts above the viewport at ${height}px`);
     assert.ok(box.y + box.height <= height + 1, `sheet overflows the viewport at ${height}px`);
-    for (const control of [page.getByPlaceholder('Buscar o escribir un código'), page.getByRole('button', { name: '+ A mano', exact: true })]) {
+    for (const control of [page.getByPlaceholder('Buscar o escribir un código'), page.getByRole('button', { name: 'Añadir alimento a mano', exact: true }), page.getByRole('button', { name: 'Copiar desayuno del día anterior', exact: true })]) {
       const rect = await control.boundingBox();
       assert.ok(rect && rect.y >= 0 && rect.y + rect.height <= height + 1, `a sheet control is off screen at ${height}px`);
     }
@@ -315,6 +315,44 @@ try {
     if (height === 360) await page.screenshot({ path: '/tmp/nutri-keyboard-open.png' });
   }
   await page.screenshot({ path: '/tmp/nutri-keyboard-review.png' });
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+
+  // Copying can be started from the whole-day action or from the add sheet
+  // for one meal. Both paths must let the user choose meals and preserve the
+  // existing duplicate protection.
+  const previousDate = (() => {
+    const previous = new Date(`${diaryDate}T12:00:00`);
+    previous.setDate(previous.getDate() - 1);
+    return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Madrid' }).format(previous);
+  })();
+  await request(`/api/entries?profile=${profile.id}`, 'POST', { id: randomUUID(), date: previousDate, meal: 'Desayuno', food, quantity: 222, profileId: profile.id });
+  await request(`/api/entries?profile=${profile.id}`, 'POST', { id: randomUUID(), date: previousDate, meal: 'Comida', food, quantity: 333, profileId: profile.id });
+  assert.deepEqual((await request(`/api/entries?date=${previousDate}&profile=${profile.id}`)).map(entry => `${entry.meal}:${entry.quantity}`), ['Desayuno:222', 'Comida:333']);
+  await tab('Hoy');
+  await page.getByRole('button', { name: 'Copiar el día anterior', exact: true }).click();
+  const copyDialog = page.getByRole('dialog', { name: 'Copiar del día anterior' });
+  await copyDialog.waitFor({ state: 'visible' });
+  await copyDialog.getByRole('checkbox', { name: /^Comida/ }).uncheck();
+  assert.equal(await copyDialog.locator('.plan-list li').filter({ hasText: '222 g' }).count(), 1, 'selected meal should remain in the copy plan');
+  assert.equal(await copyDialog.locator('.plan-list li').filter({ hasText: '333 g' }).count(), 0, 'unselected meal should leave the copy plan');
+  await copyDialog.getByRole('button', { name: 'Añadir', exact: true }).click();
+  await copyDialog.waitFor({ state: 'hidden' });
+  await page.locator('.entry').filter({ hasText: '222 g' }).waitFor();
+
+  await page.getByRole('button', { name: 'Añadir a Comida', exact: true }).click();
+  await page.getByRole('button', { name: 'Copiar comida del día anterior', exact: true }).click();
+  const mealCopyDialog = page.getByRole('dialog', { name: 'Copiar del día anterior' });
+  const mealChoice = mealCopyDialog.getByRole('checkbox', { name: /^Comida/ });
+  assert.ok(await mealChoice.isChecked(), 'meal copy action should preselect its meal');
+  assert.equal(await mealCopyDialog.locator('.plan-list li').filter({ hasText: '333 g' }).count(), 1, 'meal copy should preview only the requested meal');
+  await mealCopyDialog.getByRole('button', { name: 'Añadir', exact: true }).click();
+  await mealCopyDialog.waitFor({ state: 'hidden' });
+  await page.locator('.entry').filter({ hasText: '333 g' }).waitFor();
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page.getByRole('button', { name: 'Añadir a Comida', exact: true }).click();
+  await page.getByRole('button', { name: 'Copiar comida del día anterior', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'Ya tienes registrado todo comida' }).waitFor();
+  assert.equal(await page.getByRole('dialog', { name: 'Copiar del día anterior' }).count(), 0, 'the meal action must not offer a duplicate copy');
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log('PASS: macro editing; shared-entry editing without duplicates; retained drafts; invalid portions; timed notifications; offline sync; responsive tabs; live diary updates; search in reduced and offset visual viewports; barcode entry; protected profile deletion; no uncaught errors.');

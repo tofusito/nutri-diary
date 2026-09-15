@@ -71,7 +71,7 @@ When you cook the same thing for both, tick the other person in the add sheet an
 
 - The add sheet opens on the foods this profile uses most often for that meal, with the latest portion remembered; the plus button logs one directly and keeps the sheet open for another quick add. The search field stays quiet until you tap it.
 - Tap a logged portion to change the amount, move it to another meal or another day, or delete it.
-- Copying yesterday asks first, shows what it will add and skips anything already there, so pressing it twice cannot duplicate the day.
+- Copy yesterday from the day action and choose the meals to bring over, or open a meal's add sheet and use the copy icon to preselect only that meal. The preview skips anything already there, so pressing it twice cannot duplicate entries.
 - Entries keep a snapshot of the food, so fixing a catalogue mistake never rewrites what you already ate.
 - The open day keeps itself up to date. When the other phone adds to your diary — which the shared dish feature does on purpose — it shows up on its own, without reopening anything.
 - Log without signal and it syncs when you are back.

@@ -63,7 +63,7 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
       </section>
     })}</div>
 
-    <button className="link-button center" onClick={onCopy}>Copiar el día anterior</button>
+    <button className="link-button center" onClick={() => onCopy()}>Copiar el día anterior</button>
 
     {editing && <EditEntry entry={editing}
       profile={profile} profiles={profiles} onAdd={onAdd}
@@ -71,7 +71,7 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
       onDelete={() => onDelete(editing)}
       onClose={() => setEditing(null)} />}
 
-    {adding && <AddFood meal={adding} entries={entries} foods={foods} profile={profile} profiles={profiles}
+    {adding && <AddFood meal={adding} entries={entries} foods={foods} profile={profile} profiles={profiles} onCopyPrevious={() => onCopy(adding)}
       onCreated={food => onFoods(current => [food, ...current.filter(item => item.id !== food.id)])}
       onAdd={onAdd} onClose={() => setAdding(null)} />}
   </main>

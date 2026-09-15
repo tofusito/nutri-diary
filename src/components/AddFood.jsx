@@ -15,7 +15,7 @@ const NOTIFICATION_DURATION_MS = 5_000
 /** Search sheet used to log a food: always looks in the personal catalog first,
  *  then in Open Food Facts. A barcode can belong to several products, so every
  *  match is listed instead of silently taking the first one. */
-export default function AddFood({ meal, entries, foods, profile, profiles, onAdd, onCreated, onClose }) {
+export default function AddFood({ meal, entries, foods, profile, profiles, onAdd, onCreated, onCopyPrevious, onClose }) {
   const [query, setQuery] = useState('')
   const [result, setResult] = useState({ mine: [], external: [] })
   const [barcode, setBarcode] = useState('')
@@ -185,7 +185,10 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
 
   const createByHand = () => setCreating({ ...emptyFood(), name: query.trim().length > 2 && !barcode ? query.trim() : '', barcode })
   return <Modal title={`Añadir a ${meal}`} onClose={onClose} tall
-    action={<button type="button" className="chip" onClick={createByHand}>+ A mano</button>}>
+    action={<>
+      <button type="button" className="sheet-action" onClick={createByHand} aria-label="Añadir alimento a mano" title="Añadir alimento a mano"><Icon name="edit" /></button>
+      <button type="button" className="sheet-action" onClick={onCopyPrevious} aria-label={`Copiar ${meal.toLowerCase()} del día anterior`} title={`Copiar ${meal.toLowerCase()} del día anterior`}><Icon name="copy" /></button>
+    </>}>
     <div className="search-row">
       <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar o escribir un código" inputMode="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck="false" />
       <button className="secondary scan-button" onClick={() => setScanner(true)} aria-label="Escanear código de barras"><Icon name="barcode" /></button>
