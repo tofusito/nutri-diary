@@ -195,7 +195,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
     </div>
     {barcode && barcode === query.trim() && !loading && <p className="barcode-note">Código <b>{barcode}</b> · {mine.length + external.length
       ? `${mine.length + external.length} producto(s). Un mismo código puede estar reutilizado en varios productos: revísalo antes de elegir.`
-      : 'sin resultados. Créalo con «+ A mano» arriba: el código ya va rellenado.'}</p>}
+      : 'sin resultados. Pulsa el lápiz de arriba para crearlo: el código ya va rellenado.'}</p>}
     {loading && <p className="muted">Buscando…</p>}
     {message && <p className="error" role="alert">{message}</p>}
     {notice && <p className="success" role="status">{notice}</p>}

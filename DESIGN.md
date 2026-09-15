@@ -27,7 +27,7 @@ Keep the red bowl variant consistent across:
 - Add and close controls have 44 pixel targets. Confirmation uses a check mark and errors use an exclamation mark alongside explanatory text. Destructive confirmations have an outlined warning surface.
 - Floating notifications and reversible deletion notices dismiss after five seconds. The undo action remains available for that full interval; validation errors inside forms remain until corrected.
 - A habitual food already present in the selected meal stays in place with a persistent check and its quick-add button disabled. Tapping the row still opens the quantity view for an intentional second serving.
-- The add-food sheet uses a pencil icon for manual food creation and overlapping sheets for copying the previous day's selected meal. Icon-only controls keep their meaning through a visible tooltip and an accessible label.
+- The add-food sheet uses a pencil icon for manual food creation and overlapping sheets for copying the previous day's selected meal. Both have 44 pixel touch targets and accessible labels. Desktop tooltips are supplementary; mobile help refers to the pencil, and the copy sheet explains which day's meals will be copied.
 
 Validate text pairs against [WCAG contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html), and respect [reduced motion](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion). Run `npm run build`, `npm run check` and `npm run screenshots` to verify the mobile flows and refresh documentation previews.
 
