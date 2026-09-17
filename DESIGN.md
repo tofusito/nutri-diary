@@ -24,6 +24,7 @@ Keep the red bowl variant consistent across:
 - Preserve the established macro colours: amber for carbohydrates, blue for protein and pink for fat.
 - Prefer spacing and hierarchy over extra decoration. Motion should be brief and respect `prefers-reduced-motion`.
 - Anything someone types into opens as a full-screen sheet with its actions in the top bar, so a keyboard can never cover them. Pickers and confirmations without typing stay bottom sheets. Sheets are pinned to the layout viewport in CSS and never sized by script, which is what keeps them still while the iOS keyboard opens.
+- The floating navigation bar sits inside its own full-viewport fixed layer, with the bar itself bottom-aligned inside that layer. This keeps the dock anchored during iOS landscape-to-portrait rotation; while typing, the layer fades and becomes inert without applying a vertical transform to the bar.
 - Add and close controls have 44 pixel targets. Confirmation uses a check mark and errors use an exclamation mark alongside explanatory text. Destructive confirmations have an outlined warning surface.
 - Floating notifications and reversible deletion notices dismiss after five seconds. The undo action remains available for that full interval; validation errors inside forms remain until corrected.
 - A habitual food already present in the selected meal stays in place with a persistent check and its quick-add button disabled. Tapping the row still opens the quantity view for an intentional second serving.

@@ -250,8 +250,10 @@ export default function App() {
       {copyPlan.skipped > 0 && <p className="muted">{copyPlan.skipped} ya {copyPlan.skipped > 1 ? 'están' : 'está'} en este día y se {copyPlan.skipped > 1 ? 'omiten' : 'omite'}.</p>}
       <ul className="plan-list">{copyPlan.missing.filter(entry => copyPlan.selectedMeals.includes(entry.meal)).map(entry => <li key={entry.id}>{entry.meal} · {entry.food.name} · {entry.quantity} {entry.food.basis}</li>)}</ul>
     </Modal>}
-    <nav aria-label="Navegación principal" style={{ '--active-tab': ['Hoy', 'Alimentos', 'Progreso', 'Perfil'].indexOf(tab) }}>{['Hoy', 'Alimentos', 'Progreso', 'Perfil'].map(item =>
-      <button key={item} className={tab === item ? 'active' : ''} onClick={() => { setTab(item); window.scrollTo({ top: 0, behavior: 'instant' }) }} aria-current={tab === item ? 'page' : undefined}>
-        <Icon name={item.toLowerCase()} />{item}</button>)}</nav>
+    <div className="dock-layer">
+      <nav aria-label="Navegación principal" style={{ '--active-tab': ['Hoy', 'Alimentos', 'Progreso', 'Perfil'].indexOf(tab) }}>{['Hoy', 'Alimentos', 'Progreso', 'Perfil'].map(item =>
+        <button key={item} className={tab === item ? 'active' : ''} onClick={() => { setTab(item); window.scrollTo({ top: 0, behavior: 'instant' }) }} aria-current={tab === item ? 'page' : undefined}>
+          <Icon name={item.toLowerCase()} />{item}</button>)}</nav>
+    </div>
   </div>
 }

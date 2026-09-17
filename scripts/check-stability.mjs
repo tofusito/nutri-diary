@@ -59,6 +59,18 @@ try {
   const diaryDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Madrid' }).format(new Date());
   await page.goto(base); await page.evaluate(id => localStorage.setItem('nutri-profile', id), profile.id); await page.reload();
   await page.getByRole('navigation').waitFor({ state: 'visible' });
+  const dock = page.getByRole('navigation');
+  const assertDockAtBottom = async (width, height, label) => {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => window.dispatchEvent(new Event('orientationchange')));
+    await frames();
+    const box = await dock.boundingBox();
+    assert.ok(box && box.x >= -1 && box.x + box.width <= width + 1, `${label} dock must stay inside the viewport`);
+    const bottomGap = box && height - (box.y + box.height);
+    assert.ok(box && bottomGap >= 10 && bottomGap <= 18, `${label} dock must stay anchored near the bottom`);
+  };
+  await assertDockAtBottom(844, 390, 'landscape');
+  await assertDockAtBottom(390, 844, 'portrait after rotation');
   await tab('Perfil');
   for (const label of ['Hidratos', 'Proteínas', 'Grasas']) {
     const field = page.getByLabel(label, { exact: true });
@@ -331,7 +343,7 @@ try {
   await assertNoAutofill(page.locator('main'));
   await zeroMacro.focus();
   await page.waitForFunction(() => document.documentElement.classList.contains('typing'));
-  assert.equal(await page.getByRole('navigation').evaluate(el => getComputedStyle(el).pointerEvents), 'none', 'the tab bar must step aside while typing');
+  assert.equal(await page.locator('.dock-layer').evaluate(el => getComputedStyle(el).pointerEvents), 'none', 'the tab bar must step aside while typing');
   await zeroMacro.blur();
   await page.waitForFunction(() => !document.documentElement.classList.contains('typing'));
 
