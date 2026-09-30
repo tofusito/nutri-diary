@@ -10,6 +10,8 @@ Log the meal, see what is left. No coaching, no streaks, no subscription.
 
 </div>
 
+<div align="center"><strong><a href="#what-it-does">Features</a> · <a href="#run-it">Run locally</a> · <a href="#self-hosting">Self-host</a> · <a href="#how-it-is-built">How it works</a></strong></div>
+
 Nutri's visual identity is built around a warm cream bowl, golden noodles and charcoal chopsticks on a vivid vermilion-red field. The same mark is used as the repository artwork, browser favicon, Apple touch icon and installable PWA icon, so the app is recognisable on the Home Screen at a glance.
 
 The screenshots below use fictional demo data and contain no household diary information.
@@ -27,7 +29,7 @@ The screenshots below use fictional demo data and contain no household diary inf
 </tr>
 </table>
 
-More mobile views: [usual foods](docs/screens/frequent.png) · [library](docs/screens/foods.png) · [create food](docs/screens/create.png) · [profile](docs/screens/profile.png).
+More mobile views: [usual foods](docs/screens/frequent.png) · [AI meal estimate](docs/screens/meal-ai.png) · [library](docs/screens/foods.png) · [create food](docs/screens/create.png) · [profile](docs/screens/profile.png).
 
 ## What it does
 
@@ -84,10 +86,12 @@ Node 22.23+ and a MongoDB instance.
 
 ```sh
 npm ci
-cp .env.example .env      # set MONGODB_URI, and APP_PASSWORD or DEV_AUTH_BYPASS=1
+cp .env.example .env      # set MONGODB_URI and APP_PASSWORD; use two terminals below
 npm run server            # API on :3100
 npm run dev               # UI, proxies /api
 ```
+
+Run `npm run server` and `npm run dev` in separate terminals. For Cloudflare Access, set `AUTH_MODE=cloudflare`, configure the Access team domain and audience, and leave `APP_PASSWORD` empty. If you run the API on a network, keep authentication enabled; `DEV_AUTH_BYPASS=1` is only for local loopback development.
 
 Want to poke at it without installing MongoDB? `npm run build && node scripts/preview-local.mjs` starts a throwaway diary on an in-memory database, discarded when you stop it.
 
@@ -100,20 +104,20 @@ Want to poke at it without installing MongoDB? `npm run build && node scripts/pr
 
 ## Self-hosting
 
-`compose.yaml` is the whole stack: the app, an authenticated MongoDB, a daily backup job and an optional Cloudflare Tunnel connector. It is the same file that runs in production — there is no second, truer copy elsewhere.
+`compose.yaml` defines the app, authenticated MongoDB, daily backup job and Cloudflare Tunnel connector. Copy `.env.example` to `.env` and set the required values before starting the stack.
 
 ```sh
-cp .env.example .env      # fill in the passwords and APP_ORIGIN
+cp .env.example .env      # set database credentials, TUNNEL_TOKEN and APP_ORIGIN
 docker compose up -d --build
 ```
 
 **No service publishes a host port.** The app and MongoDB share an internal network that has no route out; a second network exists only so the tunnel connector can reach the app and so the app can reach Open Food Facts. The app runs read-only with `no-new-privileges` and memory, CPU and process limits, and MongoDB is reachable only with the application credentials, scoped to the two databases and nothing else.
 
-Because nothing is published, the tunnel is the way in, and the connector is part of the stack: `up -d` brings it up with everything else and compose refuses to start without a `TUNNEL_TOKEN`. Running cloudflared on the host instead? Drop that service and point the hostname at the app container. Creating the tunnel and its DNS record is a manual step this repository does not perform.
+Because nothing is published, the tunnel is the way in. The connector is included in this Compose stack and requires `TUNNEL_TOKEN`; starting Compose brings it up with the app. To run cloudflared on the host instead, remove the connector service and point the hostname at the app container. Creating the tunnel and its DNS record is a manual step this repository does not perform.
 
 State lives where `MONGO_DATA_PATH` and `BACKUP_PATH` say, `./data/...` by default. Containers carry the `autoheal` label, so a [willfarrell/autoheal](https://github.com/willfarrell/docker-autoheal) sidecar will restart them when a health check fails.
 
-A tunnel gives you transport, not identity. Put [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/) in front and set `AUTH_MODE=cloudflare`; add `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` and the origin verifies the assertion Access attaches to every allowed request, so a policy that gets removed becomes a 403 instead of an open diary. The audience tag is the `kid` parameter of the Access login redirect for your hostname. Keep the API uncached at the edge; never add a Cache Everything rule to it.
+A tunnel provides the route; [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/) controls who can sign in. Set `AUTH_MODE=cloudflare`, `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` so the origin verifies Access assertions too. With this mode, no app password is required: leave `APP_PASSWORD` blank. The audience tag is the `kid` parameter of the Access login redirect for your hostname. Keep the API uncached at the edge; never add a Cache Everything rule to it.
 
 To enable the optional food assistant, set `OPENAI_API_KEY` in the server environment. `OPENAI_MODEL` defaults to `gpt-6-luna`. An existing explicit environment override must also be updated to use the new model. Keep the key out of the repository and browser; leave it empty to keep the rest of the diary working without the assistant.
 

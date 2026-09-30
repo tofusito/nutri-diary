@@ -98,6 +98,27 @@ await page.keyboard.press('Escape');
 await tab('Perfil');
 await settle();
 await page.screenshot({ path: new URL('profile.png', out).pathname });
+
+await page.getByRole('navigation').getByRole('button', { name: 'Hoy', exact: true }).click();
+await page.getByRole('button', { name: 'Añadir a Cena', exact: true }).click();
+await page.getByRole('button', { name: 'Estimar una comida con IA', exact: true }).click();
+await page.route('**/api/foods/ai', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+  food: {
+    name: 'Arroz, pollo y verduras', brand: '', barcode: '', basis: 'g',
+    nutrients: { kcal: 145, carbs: 18, protein: 9, fat: 4 }, servingSize: 520,
+    source: 'openai-web',
+    ai: { model: 'gpt-6-luna', confidence: 'low', estimated: true, notes: 'Raciones y aceite estimados; los valores pueden variar según la preparación.', query: 'Arroz con pollo y verduras', sources: [], generatedAt: new Date().toISOString() },
+  },
+  confidence: 'low', estimated: true,
+  notes: 'Raciones y aceite estimados; los valores pueden variar según la preparación.',
+  sources: [], model: 'gpt-6-luna',
+}) }));
+await page.getByLabel('Qué has comido', { exact: true }).fill('Un plato de arroz con pollo y verduras en un restaurante');
+await page.getByRole('button', { name: 'Estimar con IA', exact: true }).click();
+await page.getByRole('button', { name: 'Revisar y añadir', exact: true }).waitFor();
+await settle();
+await page.screenshot({ path: new URL('meal-ai.png', out).pathname });
+await page.unroute('**/api/foods/ai');
 await page.emulateMedia({ reducedMotion: 'reduce' });
 if (await page.locator('main').evaluate(el => getComputedStyle(el).animationName) !== 'none') throw new Error('Reduced motion must disable page animation');
 
