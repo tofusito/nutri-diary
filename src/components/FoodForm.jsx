@@ -40,7 +40,7 @@ export default function FoodForm({ title = 'Nuevo alimento', initial, onSave, on
     if (!food.name.trim()) return
     if (saving || loading) return
     setSaving(true); setError('')
-    try { await onSave({ ...food, name: food.name.trim(), nutrients: Object.fromEntries(Object.entries(food.nutrients).map(([key, value]) => [key, number(value)])) }) }
+    try { await onSave({ ...food, name: food.name.trim(), brand: (food.brand || '').trim(), servingSize: number(food.servingSize) > 0 ? number(food.servingSize) : null, nutrients: Object.fromEntries(Object.entries(food.nutrients).map(([key, value]) => [key, number(value)])) }) }
     catch (err) { setError(err.message || 'No se pudo guardar. Inténtalo otra vez.') }
     finally { setSaving(false) }
   }
@@ -72,17 +72,18 @@ export default function FoodForm({ title = 'Nuevo alimento', initial, onSave, on
   return <>
   <Modal title={title} onClose={onCancel} primary={primary}>
   <form id={formId} className="form" onSubmit={submit} autoComplete="off">
+    {food.ai?.estimated && !aiResult && <p className="muted">Estimación orientativa con IA. {food.ai.notes || 'Revisa las cantidades y los valores antes de guardar.'}</p>}
     <section className="ai-assistant" aria-labelledby="food-ai-title">
       <div className="ai-assistant-head"><div><p className="eyebrow">ASISTENTE</p><h3 id="food-ai-title">Rellenar con IA</h3></div><span className="ai-badge">WEB</span></div>
       <label>Qué alimento o producto buscas<input {...plainField('ai_query')} type="search" value={aiQuery} onChange={event => setAiQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); fillWithAi() } }} placeholder="Ej. Pan de hamburguesa Hacendado" enterKeyHint="search" /></label>
       <button type="button" className="ai-action" onClick={fillWithAi} disabled={aiQuery.trim().length < 2 || aiLoading || saving || loading}>{aiLoading ? 'Buscando…' : 'Buscar con IA'}</button>
-      <p className="muted">Consulta fuentes públicas y propone valores por 100 {unit}. Revísalos antes de guardar.</p>
+      <p className="muted">Busca referencias y, si no las encuentra, estima valores por 100 {unit}. Marca las estimaciones como orientativas. Revísalas antes de guardar.</p>
       {aiError && <p className="error" role="alert">{aiError}</p>}
       {aiResult && <div className="ai-result" role="status" aria-live="polite">
-        <div className="ai-result-head"><strong>Propuesta rellenada</strong><span className={`ai-confidence confidence-${aiResult.confidence}`}>Confianza {confidenceText[aiResult.confidence] || 'no indicada'}</span></div>
+        <div className="ai-result-head"><strong>{aiResult.estimated ? 'Estimación orientativa' : 'Propuesta rellenada'}</strong><span className={`ai-confidence confidence-${aiResult.confidence}`}>Confianza {confidenceText[aiResult.confidence] || 'no indicada'}</span></div>
         {aiResult.notes && <p className="muted">{aiResult.notes}</p>}
         {aiResult.sources?.length > 0 && <div><small className="ai-sources-label">Fuentes consultadas</small><ul className="ai-sources">{aiResult.sources.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a></li>)}</ul></div>}
-        <small className="muted">La propuesta queda editable. Guarda solo cuando te cuadre con la etiqueta.</small>
+        <small className="muted">La propuesta queda editable. Comprueba cantidades, preparación y etiqueta si la tienes.</small>
       </div>}
     </section>
     <label>Alimento<input {...plainField('food_title')} required value={food.name} onChange={event => set('name', event.target.value)} placeholder="Ej. Yogur griego natural" enterKeyHint="next" autoCapitalize="sentences" /></label>
@@ -104,6 +105,7 @@ export default function FoodForm({ title = 'Nuevo alimento', initial, onSave, on
         <label>Marca<input {...plainField('maker')} value={food.brand || ''} onChange={event => set('brand', event.target.value)} enterKeyHint="next" /></label>
         <label>Ración habitual ({unit})<input {...numberField('portion')} type="number" min="0" step="1" value={food.servingSize || ''} onFocus={selectZero} onChange={event => set('servingSize', number(event.target.value))} enterKeyHint="done" /></label>
       </div>
+      <p className="muted">Marca y ración habitual son opcionales. Puedes guardar solo los valores por 100 {unit}.</p>
       <label className="check"><input type="checkbox" checked={Boolean(food.favorite)} onChange={event => set('favorite', event.target.checked)} /> Favorito</label>
       <label className="upload">{loading ? 'Leyendo etiqueta…' : 'Leer etiqueta con la cámara'}<input type="file" accept="image/*" capture="environment" onChange={event => scanLabel(event.target.files?.[0])} /></label>
       {ocr && <details><summary>Texto leído, para confirmar</summary><pre>{ocr}</pre></details>}

@@ -59,7 +59,9 @@ A barcode is not a unique key in real life — shops reuse them — so a scan li
 
 Pick a public result and it is copied into your catalogue, so next time it is already yours.
 
-An optional `Rellenar con IA` action can search the web and propose a food name, brand and nutrients. It runs on the server with OpenAI's Responses API, GPT-5.6 Luna and the web search tool; the API key never reaches the browser. The proposal is editable and sources are shown before you save it. Nutrition values remain a suggestion to check against the label, especially for branded products.
+An optional `Rellenar con IA` action can search the web and propose a food name, brand and nutrients. It runs on the server with OpenAI's Responses API, GPT-6 Luna and the web search tool; the API key never reaches the browser. When matching references are unavailable, it can provide an explicitly labelled, low-confidence estimate. Brand and usual serving are optional.
+
+The add-food panel stays open after saving, so several foods can be logged to the same meal and date without reopening it. Choose `Listo` to return to the diary at the previous scroll position. `Estimar una comida con IA` accepts a description of an entire meal, including restaurant dishes. Review and edit its **whole-meal totals** and assumed weight before confirming the portion and recipients. Internally these totals are normalized to the same per-100-g storage as ordinary foods; changing the assumed weight in the review does not change the total energy. Estimates are not official nutrition labels.
 
 ### Two people, one kitchen
 
@@ -113,7 +115,7 @@ State lives where `MONGO_DATA_PATH` and `BACKUP_PATH` say, `./data/...` by defau
 
 A tunnel gives you transport, not identity. Put [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/) in front and set `AUTH_MODE=cloudflare`; add `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` and the origin verifies the assertion Access attaches to every allowed request, so a policy that gets removed becomes a 403 instead of an open diary. The audience tag is the `kid` parameter of the Access login redirect for your hostname. Keep the API uncached at the edge; never add a Cache Everything rule to it.
 
-To enable the optional food assistant, set `OPENAI_API_KEY` in the server environment. `OPENAI_MODEL` defaults to `gpt-5.6-luna`. Keep both values out of the repository and browser; leave the key empty to keep the rest of the diary working without the assistant.
+To enable the optional food assistant, set `OPENAI_API_KEY` in the server environment. `OPENAI_MODEL` defaults to `gpt-6-luna`. An existing explicit environment override must also be updated to use the new model. Keep the key out of the repository and browser; leave it empty to keep the rest of the diary working without the assistant.
 
 On the phone: open the HTTPS site and Add to Home Screen. Barcode scanning needs camera permission and a secure context, so it works over the tunnel and on `localhost` and nowhere else — not over plain HTTP on a LAN address. The scanner says so and offers a field for typing the code by hand.
 

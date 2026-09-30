@@ -73,7 +73,7 @@ function normalizeAiMetadata(value) {
   assert(isObject(value), 'Metadatos de IA inválidos.');
   assert(typeof value.model === 'string' && value.model.length > 0 && value.model.length <= 80, 'Modelo de IA inválido.');
   assert(['high', 'medium', 'low'].includes(value.confidence), 'Confianza de IA inválida.');
-  assert(typeof value.query === 'string' && value.query.length > 0 && value.query.length <= 180, 'Consulta de IA inválida.');
+  assert(typeof value.query === 'string' && value.query.length > 0 && value.query.length <= 1000, 'Consulta de IA inválida.');
   assert(typeof value.generatedAt === 'string' && value.generatedAt.length <= 40, 'Fecha de IA inválida.');
   assert(Array.isArray(value.sources) && value.sources.length <= 6, 'Fuentes de IA inválidas.');
   const sources = value.sources.map(source => {
@@ -81,7 +81,7 @@ function normalizeAiMetadata(value) {
     assert(typeof source.url === 'string' && /^https:\/\//.test(source.url) && source.url.length <= 500, 'URL de fuente inválida.');
     return { title: source.title, url: source.url };
   });
-  return { model: value.model, confidence: value.confidence, query: value.query, sources, generatedAt: value.generatedAt };
+  return { model: value.model, confidence: value.confidence, estimated: value.estimated === true, notes: typeof value.notes === 'string' ? value.notes.slice(0, 600) : '', query: value.query, sources, generatedAt: value.generatedAt };
 }
 
 function normalizeFood(value, { requireId = false } = {}) {
@@ -91,7 +91,8 @@ function normalizeFood(value, { requireId = false } = {}) {
   assert(value.brand === undefined || value.brand === null || typeof value.brand === 'string', 'Marca inválida.');
   assert(value.barcode === undefined || value.barcode === null || (typeof value.barcode === 'string' && value.barcode.length <= 64), 'Código de barras inválido.');
   assert(value.basis === 'g' || value.basis === 'ml', 'La base debe ser g o ml.');
-  assert(value.servingSize === undefined || value.servingSize === null || (finiteNumber(value.servingSize) && value.servingSize > 0), 'Ración inválida.');
+  const servingSize = value.servingSize === '' || value.servingSize === 0 ? null : value.servingSize;
+  assert(servingSize === undefined || servingSize === null || (finiteNumber(servingSize) && servingSize > 0), 'Ración inválida.');
   const food = {
     ...(requireId ? { id: value.id } : {}),
     name: value.name.trim(),
@@ -99,7 +100,7 @@ function normalizeFood(value, { requireId = false } = {}) {
     barcode: value.barcode?.trim() || undefined,
     basis: value.basis,
     nutrients: normalizeNutrients(value.nutrients),
-    servingSize: value.servingSize,
+    servingSize,
     favorite: value.favorite === true,
     basisUncertain: value.basisUncertain === true || undefined,
     source: typeof value.source === 'string' ? value.source : undefined,

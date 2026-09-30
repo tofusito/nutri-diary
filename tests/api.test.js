@@ -71,14 +71,14 @@ test('food assistant uses Luna web search and returns editable provenance',async
       output_text:JSON.stringify({
         name:'Yogur griego natural',brand:'Marca de prueba',basis:'g',
         nutrients:{kcal:97,carbs:4,protein:9,fat:5},servingSize:125,
-        confidence:'medium',
+        confidence:'medium',estimated:false,
         sources:[{title:'Etiqueta del fabricante',url:'https://brand.example/nutrition'}],
         notes:'La etiqueta coincide con los valores por 100 g.',
       }),
       output:[{type:'web_search_call',status:'completed',action:{type:'search',sources:[{type:'url',url:'https://brand.example/nutrition'}]}}],
     };
   }}};
-  const assistant=createApp(client,{env:{DEV_AUTH_BYPASS:'1',OPENAI_API_KEY:'test-key',OPENAI_MODEL:'gpt-5.6-luna'},openaiClient:fakeOpenAI});
+  const assistant=createApp(client,{env:{DEV_AUTH_BYPASS:'1',OPENAI_API_KEY:'test-key'},openaiClient:fakeOpenAI});
   const assistantServer=assistant.listen(0,'127.0.0.1'); await new Promise(resolve=>assistantServer.once('listening',resolve));
   const origin=`http://127.0.0.1:${assistantServer.address().port}`;
   try {
@@ -86,14 +86,24 @@ test('food assistant uses Luna web search and returns editable provenance',async
     assert.equal(response.status,200);
     const body=await response.json();
     assert.equal(body.food.nutrients.kcal,97); assert.equal(body.food.barcode,'8410000000001');
-    assert.equal(body.food.ai.model,'gpt-5.6-luna'); assert.equal(body.food.ai.confidence,'medium');
+    assert.equal(body.food.ai.model,'gpt-6-luna'); assert.equal(body.food.ai.confidence,'medium');
     assert.deepEqual(body.sources,[{title:'Etiqueta del fabricante',url:'https://brand.example/nutrition'}]);
-    assert.equal(call.model,'gpt-5.6-luna'); assert.equal(call.store,false); assert.equal(call.tools[0].type,'web_search');
+    assert.equal(call.model,'gpt-6-luna'); assert.equal(call.store,false); assert.equal(call.tools[0].type,'web_search');
     assert.equal(call.tools[0].external_web_access,true); assert.equal(call.text.format.type,'json_schema');
     const saved=await fetch(origin+'/api/foods',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body.food)});
     assert.equal((await saved.json()).ai.sources[0].url,'https://brand.example/nutrition');
   } finally { await new Promise(resolve=>assistantServer.close(resolve)); }
   assert.equal((await request('/api/foods/ai','POST',{query:'oats'})).status,503);
+});
+
+test('brand and usual serving can be omitted, blank or zero',async()=>{
+  for (const servingSize of [undefined,null,'',0]) {
+    const saved=await request('/api/foods','POST',{...food(),brand:'',servingSize});
+    assert.equal(saved.status,201);
+    assert.ok(saved.body.servingSize == null);
+    assert.ok(!saved.body.brand);
+  }
+  assert.equal((await request('/api/foods','POST',{...food(),servingSize:-1})).status,400);
 });
 
 test('profiles keep separate diaries, goals and deletion',async()=>{

@@ -96,7 +96,7 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 
 /* ---- library ---- */
 .search-row{display:flex;gap:8px;margin-bottom:14px}
-.search-row input,.form input,.form select,.quantity-row input{width:100%;min-width:0;background:var(--raised);
+.search-row input,.form input,.form select,.form textarea,.quantity-row input{width:100%;min-width:0;background:var(--raised);
   border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--text);outline-color:var(--accent-text)}
 .search-row button{flex:none}
 .library-search{flex-wrap:wrap}
@@ -172,6 +172,9 @@ main{max-width:680px;margin:auto;padding:calc(26px + env(safe-area-inset-top)) 2
 
 /* ---- forms ---- */
 .form{display:grid;gap:13px}
+.form textarea{resize:vertical;min-height:100px;line-height:1.5}
+.meal-tools{display:flex;gap:8px;align-items:center;margin:12px 0}
+.meal-tools>.secondary{flex:1;min-width:0;font-size:13px;min-height:44px}
 .ai-assistant{display:grid;gap:12px;background:linear-gradient(145deg,#322522,#202124 72%);border:1px solid var(--accent-line);border-radius:18px;padding:16px}
 .ai-assistant-head{display:flex;align-items:start;justify-content:space-between;gap:12px}
 .ai-assistant-head h3{font-size:15px;letter-spacing:-.3px;margin-top:3px}

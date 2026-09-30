@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { scaleNutrients, sumNutrients, safeMacroCalories, meals, nutrientText, remaining, remainingText } from '../lib/nutrition.js'
 import AddFood from '../components/AddFood.jsx'
 import Macros from '../components/Macros.jsx'
@@ -12,6 +12,12 @@ const macros = [['kcal', 'Energía', '', 'kcal'], ['carbs', 'Hidratos', 'g', 'ca
 export default function Today({ date, setDate, entries, profile, profiles, foods, onAdd, onEdit, onDelete, onCopy, onFoods }) {
   const [adding, setAdding] = useState(null)
   const [editing, setEditing] = useState(null)
+  const returnPosition = useRef(0)
+  const openMeal = name => { returnPosition.current = window.scrollY; setAdding({ meal: name, date }) }
+  const closeMeal = () => {
+    setAdding(null)
+    requestAnimationFrame(() => window.scrollTo({ top: returnPosition.current, behavior: 'instant' }))
+  }
   const totals = useMemo(() => sumNutrients(entries.map(entry => scaleNutrients(entry.food.nutrients, entry.quantity))), [entries])
   const goal = { kcal: safeMacroCalories(profile), carbs: profile.carbs || 0, protein: profile.protein || 0, fat: profile.fat || 0 }
   const today = localDate()
@@ -46,14 +52,14 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
       const mealTotals = sumNutrients(rows.map(entry => scaleNutrients(entry.food.nutrients, entry.quantity)))
       return <section className="meal" key={name}>
         <h2>{name}<span>{rows.length ? `${nutrientText(mealTotals.kcal)} kcal` : ''}</span>
-          <button className="add-meal" onClick={() => setAdding(name)} aria-label={`Añadir a ${name}`}>+</button></h2>
+          <button className="add-meal" onClick={() => openMeal(name)} aria-label={`Añadir a ${name}`}>+</button></h2>
         {rows.length > 0 && <p className="meal-macros"><Macros nutrients={mealTotals} unit=" g" /></p>}
         {rows.map(entry => {
           const portion = scaleNutrients(entry.food.nutrients, entry.quantity)
           return <article className={`entry ${entry.pending ? 'pending' : ''}`} key={entry.id}>
             <button className="entry-main" onClick={() => setEditing(entry)}>
               <strong>{entry.food.name}</strong>
-              <span><b>{entry.quantity} {entry.food.basis}</b> · {nutrientText(portion.kcal)} kcal{entry.pending ? ' · pendiente' : ''}</span>
+              <span><b>{entry.quantity} {entry.food.basis}</b> · {nutrientText(portion.kcal)} kcal{entry.food.ai?.estimated ? ' · estimación IA' : ''}{entry.pending ? ' · pendiente' : ''}</span>
               <span className="entry-macros"><Macros nutrients={portion} /></span>
             </button>
             <button className="delete" onClick={() => onDelete(entry)} aria-label={`Eliminar ${entry.food.name}`}>×</button>
@@ -71,8 +77,8 @@ export default function Today({ date, setDate, entries, profile, profiles, foods
       onDelete={() => onDelete(editing)}
       onClose={() => setEditing(null)} />}
 
-    {adding && <AddFood meal={adding} entries={entries} foods={foods} profile={profile} profiles={profiles} onCopyPrevious={() => onCopy(adding)}
+    {adding && <AddFood meal={adding.meal} date={adding.date} entries={entries} foods={foods} profile={profile} profiles={profiles} onCopyPrevious={() => onCopy(adding.meal)}
       onCreated={food => onFoods(current => [food, ...current.filter(item => item.id !== food.id)])}
-      onAdd={onAdd} onClose={() => setAdding(null)} />}
+      onAdd={onAdd} onClose={closeMeal} />}
   </main>
 }

@@ -84,11 +84,12 @@ export function handleTyping() {
     liftField(field)
     // The page behind a sheet cannot scroll, so any pan is Safari's alone.
     clearTimeout(settling)
-    requestAnimationFrame(unpan)
-    settling = setTimeout(() => { liftField(field); unpan() }, KEYBOARD_SETTLE_MS)
+    requestAnimationFrame(() => { if (field.isConnected && document.activeElement === field) unpan() })
+    settling = setTimeout(() => { if (field.isConnected && document.activeElement === field) { liftField(field); unpan() } }, KEYBOARD_SETTLE_MS)
   }
 
   const onFocusOut = () => {
+    clearTimeout(settling)
     clearTimeout(leaving)
     leaving = setTimeout(() => {
       if (isTextEntry(document.activeElement)) return

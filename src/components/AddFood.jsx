@@ -6,6 +6,7 @@ import Macros from './Macros.jsx'
 import Modal from './Modal.jsx'
 import Scanner from './Scanner.jsx'
 import FoodForm from './FoodForm.jsx'
+import MealAi from './MealAi.jsx'
 import { plainField, numberField } from '../lib/fields.js'
 
 const sameFood = (a, b) => a.barcode && b.barcode ? a.barcode === b.barcode && a.name === b.name : a.name === b.name && (a.brand || '') === (b.brand || '')
@@ -16,7 +17,7 @@ const NOTIFICATION_DURATION_MS = 5_000
 /** Search sheet used to log a food: always looks in the personal catalog first,
  *  then in Open Food Facts. A barcode can belong to several products, so every
  *  match is listed instead of silently taking the first one. */
-export default function AddFood({ meal, entries, foods, profile, profiles, onAdd, onCreated, onCopyPrevious, onClose }) {
+export default function AddFood({ meal, date, entries, foods, profile, profiles, onAdd, onCreated, onCopyPrevious, onClose }) {
   const [query, setQuery] = useState('')
   const [result, setResult] = useState({ mine: [], external: [] })
   const [barcode, setBarcode] = useState('')
@@ -25,6 +26,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
   const [scanner, setScanner] = useState(false)
   const [chosen, setChosen] = useState(null)
   const [creating, setCreating] = useState(null)
+  const [estimating, setEstimating] = useState(false)
   const [quantity, setQuantity] = useState(100)
   const [alsoFor, setAlsoFor] = useState({})
   const [saving, setSaving] = useState(false)
@@ -52,7 +54,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
   useEffect(() => {
     const text = query.trim()
     const ticket = ++request.current
-    setResult({ mine: [], external: [] }); setLoading(false); setMessage(''); setNotice('')
+    setResult({ mine: [], external: [] }); setLoading(false); setMessage('')
     if (text.length < 2) { setBarcode(''); return }
     const timer = setTimeout(async () => {
       setLoading(true)
@@ -75,7 +77,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
     return () => { alive = false }
   }, [meal, profile?.id])
 
-  const repeat = row => { entryIds.current = {}; setChosen(row.food); setQuantity(row.quantity || row.food.servingSize || 100) }
+  const repeat = row => { entryIds.current = {}; setAlsoFor({}); setMessage(''); setChosen(row.food); setQuantity(row.quantity || row.food.servingSize || 100) }
 
   const quickAdd = async row => {
     if (quickAdding || addedFoodIds.has(row.food.id) || !profile?.id || !validQuantity(row.quantity)) return
@@ -85,6 +87,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
       await onAdd({
         food: row.food,
         meal,
+        date,
         targets: [{ id: profile.id, quantity: Number(row.quantity) }],
         entryIds: { [profile.id]: crypto.randomUUID() },
       })
@@ -109,7 +112,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
     } catch (error) { if (ticket === request.current) setMessage(error.message) } finally { if (ticket === request.current) setLoading(false) }
   }
 
-  const choose = food => { entryIds.current = {}; setChosen(food); setQuantity(food.servingSize || 100) }
+  const choose = food => { entryIds.current = {}; setAlsoFor({}); setMessage(''); setChosen(food); setQuantity(food.servingSize || 100) }
 
   const confirm = async () => {
     if (saving) return
@@ -125,8 +128,12 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
       const targets = [{ id: profile.id, quantity: Number(quantity) }]
       for (const [id, grams] of Object.entries(alsoFor)) if (Number(grams) > 0) targets.push({ id, quantity: Number(grams) })
       const ids = Object.fromEntries(targets.map(target => [target.id, entryIds.current[target.id] || (entryIds.current[target.id] = crypto.randomUUID())]))
-      await onAdd({ food, meal, targets, entryIds: ids })
-      onClose()
+      await onAdd({ food, meal, date, targets, entryIds: ids })
+      setChosen(null); setAlsoFor({}); entryIds.current = {}
+      setQuery('')
+      setNotice(`${food.name} añadido a ${meal.toLowerCase()}. Puedes añadir otro.`)
+      clearTimeout(noticeTimer.current)
+      noticeTimer.current = setTimeout(() => setNotice(''), NOTIFICATION_DURATION_MS)
     } catch (error) { setMessage(error.message) } finally { setSaving(false) }
   }
 
@@ -135,6 +142,8 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
     return [...local, ...(result.mine || []).filter(food => hasKcal(food) && !seen.has(food.id))]
   }, [local, result])
   const external = useMemo(() => (result.external || []).filter(item => hasKcal(item) && !mine.some(food => sameFood(food, item))), [result, mine])
+
+  if (estimating) return <MealAi meal={meal} onClose={() => setEstimating(false)} onReady={food => { setEstimating(false); choose({ ...food, id: crypto.randomUUID() }) }} />
 
   if (creating) return <FoodForm title="Nuevo alimento" initial={creating} onCancel={() => setCreating(null)} onSave={async food => {
       try { const saved = await api('/api/foods', { method: 'POST', body: JSON.stringify(food) }); onCreated(saved); setCreating(null); choose(saved) }
@@ -147,6 +156,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
   if (chosen) return <Modal title={`Añadir a ${meal}`} onClose={() => setChosen(null)}
     primary={<button type="button" className="modal-primary" disabled={saving} onClick={confirm}>{addLabel}</button>}>
     <div className="chosen"><strong>{chosen.name}</strong><span>{[chosen.brand, chosen.quantityText, sourceLabel(chosen)].filter(Boolean).join(' · ')}</span>
+      {chosen.ai?.estimated && <p className="muted">Estimación orientativa · revisa la ración antes de añadir.</p>}
       <div className="food-macros">por 100 {chosen.basis} · {nutrientText(chosen.nutrients.kcal)} kcal <Macros nutrients={chosen.nutrients} /></div>
     </div>
     <div className="quantity-row"><button className="secondary" onClick={() => setQuantity(q => Math.max(1, Number(q) - 10))}>−10</button>
@@ -184,13 +194,15 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
 
   const createByHand = () => setCreating({ ...emptyFood(), name: query.trim().length > 2 && !barcode ? query.trim() : '', barcode })
   return <Modal title={`Añadir a ${meal}`} onClose={onClose}
-    action={<>
-      <button type="button" className="sheet-action" onClick={createByHand} aria-label="Añadir alimento a mano" title="Añadir alimento a mano"><Icon name="add" /></button>
-      <button type="button" className="sheet-action" onClick={onCopyPrevious} aria-label={`Copiar ${meal.toLowerCase()} del día anterior`} title={`Copiar ${meal.toLowerCase()} del día anterior`}><Icon name="copy" /></button>
-    </>}>
+    primary={<button type="button" className="modal-primary" onClick={onClose}>Listo</button>}>
     <div className="search-row sticky-search">
       <input {...plainField('food_lookup')} type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar o escribir un código" enterKeyHint="search" autoCorrect="off" autoCapitalize="none" spellCheck={false} />
       <button className="secondary scan-button" onClick={() => setScanner(true)} aria-label="Escanear código de barras"><Icon name="barcode" /></button>
+    </div>
+    <div className="meal-tools">
+      <button type="button" className="secondary" onClick={() => setEstimating(true)}>Estimar una comida con IA</button>
+      <button type="button" className="sheet-action" onClick={createByHand} aria-label="Añadir alimento a mano" title="Añadir alimento a mano"><Icon name="add" /></button>
+      <button type="button" className="sheet-action" onClick={onCopyPrevious} aria-label={`Copiar ${meal.toLowerCase()} del día anterior`} title={`Copiar ${meal.toLowerCase()} del día anterior`}><Icon name="copy" /></button>
     </div>
     {barcode && barcode === query.trim() && !loading && <p className="barcode-note">Código <b>{barcode}</b> · {mine.length + external.length
       ? `${mine.length + external.length} producto(s). Un mismo código puede estar reutilizado en varios productos: revísalo antes de elegir.`
@@ -217,7 +229,7 @@ export default function AddFood({ meal, entries, foods, profile, profiles, onAdd
   </Modal>
 }
 
-const sourceLabel = food => food.source === 'openfoodfacts' ? 'Open Food Facts' : ''
+const sourceLabel = food => food.ai?.estimated ? 'Estimación IA' : food.source === 'openfoodfacts' ? 'Open Food Facts' : ''
 
 function FrequentRow({ row, onPick, onQuickAdd, adding, added }) {
   const food = row.food

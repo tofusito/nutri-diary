@@ -189,6 +189,7 @@ try {
   assert.equal(await page.getByLabel('Cantidad', { exact: true }).inputValue(), '80');
   await page.unroute('**/api/entries?*');
   await page.getByRole('button', { name: 'Añadir', exact: true }).click();
+  await page.getByRole('button', { name: 'Listo', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('.entry').count(), 1);
   await context.setOffline(true);
@@ -196,6 +197,7 @@ try {
   await page.locator('.result').filter({ hasText: 'Test stability' }).click();
   await page.getByLabel('Cantidad', { exact: true }).fill('60');
   await page.getByRole('button', { name: 'Añadir', exact: true }).click();
+  await page.getByRole('button', { name: 'Listo', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('.entry.pending').count(), 1);
   assert.equal(await page.locator('.entry').count(), 2);
@@ -384,6 +386,50 @@ try {
   await page.getByRole('alert').filter({ hasText: 'Ya tienes registrado todo comida' }).waitFor();
   assert.equal(await page.getByRole('dialog', { name: 'Copiar del día anterior' }).count(), 0, 'the meal action must not offer a duplicate copy');
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  // A multi-add session retains meal/date and restores the diary after typing.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const snackButton = page.getByRole('button', { name: 'Añadir a Merienda', exact: true });
+  await snackButton.scrollIntoViewIfNeeded();
+  const diaryScroll = await page.evaluate(() => window.scrollY);
+  await snackButton.click();
+  for (const quantity of ['22', '33']) {
+    await page.locator('.result').filter({ hasText: 'Test stability' }).first().click();
+    await page.getByLabel('Cantidad', { exact: true }).fill(quantity);
+    await page.getByRole('button', { name: 'Añadir', exact: true }).click();
+    await page.getByRole('button', { name: 'Listo', exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog', { name: 'Añadir a Merienda', exact: true }).count(), 1);
+  }
+  await page.getByRole('button', { name: 'Listo', exact: true }).click();
+  await frames();
+  assert.ok(Math.abs(await page.evaluate(() => window.scrollY) - diaryScroll) < 3, 'closing returns to the original meal scroll position');
+  const snackRows = (await request('/api/entries?date=' + diaryDate)).filter(entry => [22, 33].includes(entry.quantity));
+  assert.equal(snackRows.length, 2);
+  assert.ok(snackRows.every(entry => entry.meal === 'Merienda' && entry.profileId === profile.id));
+
+  // Meal AI reviews editable TOTALS and only writes after portion confirmation.
+  await page.getByRole('button', { name: 'Añadir a Cena', exact: true }).click();
+  await page.getByRole('button', { name: 'Estimar una comida con IA', exact: true }).click();
+  await assertNoAutofill(page.getByRole('dialog'));
+  await checkSheetControls();
+  await page.route('**/api/foods/ai', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    food: { name: 'Comida china estimada', brand: '', barcode: '', basis: 'g', nutrients: { kcal: 150, carbs: 20, protein: 10, fat: 3 }, servingSize: 500, source: 'openai-web', ai: { model: 'gpt-6-luna', confidence: 'low', estimated: true, query: 'Arroz y pollo', sources: [], generatedAt: new Date().toISOString() } }, estimated: true, confidence: 'low', notes: 'Porciones estimadas.', sources: [],
+  }) }));
+  await page.getByLabel('Qué has comido', { exact: true }).fill('Arroz y pollo en un restaurante chino');
+  await page.getByRole('button', { name: 'Estimar con IA', exact: true }).click();
+  await page.getByRole('button', { name: 'Revisar y añadir', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('kcal', { exact: true }).inputValue(), '750');
+  await page.getByLabel('kcal', { exact: true }).fill('800');
+  await page.getByLabel('Peso orientativo de la comida (g)', { exact: true }).fill('400');
+  await page.getByRole('button', { name: 'Revisar y añadir', exact: true }).click();
+  assert.match(await page.locator('.chosen-total').innerText(), /800 kcal/);
+  await page.getByRole('button', { name: 'Añadir', exact: true }).click();
+  await page.getByRole('button', { name: 'Listo', exact: true }).click();
+  await page.unroute('**/api/foods/ai');
+  const estimatedEntry = (await request('/api/entries?date=' + diaryDate)).find(entry => entry.food.name === 'Comida china estimada');
+  assert.equal(estimatedEntry.meal, 'Cena');
+  assert.equal(estimatedEntry.quantity, 400);
+  assert.equal(estimatedEntry.food.nutrients.kcal * estimatedEntry.quantity / 100, 800);
+  assert.equal(estimatedEntry.food.ai.estimated, true);
   assert.deepEqual(errors, []);
   console.log('PASS: macro editing; shared-entry editing without duplicates; retained drafts; invalid portions; timed notifications; offline sync; responsive tabs; live diary updates; full-screen sheets that the keyboard cannot move; fields lifted above the keyboard line on focus; AutoFill kept off food and diary fields; tab bar out of the way while typing; barcode entry; protected profile deletion; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }
