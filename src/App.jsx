@@ -227,6 +227,11 @@ export default function App() {
 
   if (auth === null) return <main className="login"><p className="muted">Cargando tu diario…</p></main>
   if (!auth && authError) return <main className="login"><img className="brand-icon" src="/noodle-shadow-192.png?v=10" alt="" /><p className="error" role="alert">{authError}</p><button onClick={() => window.location.reload()}>Reintentar acceso</button></main>
+  if (!auth && authProvider === 'cloudflare') return <main className="login">
+    <h1>Renovar acceso</h1>
+    <p className="muted">Tu acceso se verifica con Cloudflare. Vuelve a entrar para continuar.</p>
+    <button onClick={() => window.location.reload()}>Reintentar acceso</button>
+  </main>
   if (!auth) return <Login onLogin={() => setAuth(true)} />
   if (profiles === null) return <main className="login">{error ? <><p className="error" role="alert">{error}</p><button onClick={load}>Reintentar</button></> : <p className="muted">Cargando perfiles…</p>}</main>
   if (!profile) return <ChooseProfile profiles={profiles} onSelect={selectProfile} onCreate={createProfile} />

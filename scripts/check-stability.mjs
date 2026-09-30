@@ -430,6 +430,11 @@ try {
   assert.equal(estimatedEntry.quantity, 400);
   assert.equal(estimatedEntry.food.nutrients.kcal * estimatedEntry.quantity / 100, 800);
   assert.equal(estimatedEntry.food.ai.estimated, true);
+  await page.route('**/api/session', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ authenticated: false, provider: 'cloudflare' }) }));
+  await page.reload();
+  await page.getByRole('button', { name: 'Reintentar acceso', exact: true }).waitFor();
+  assert.equal(await page.locator('input[type="password"]').count(), 0, 'Cloudflare sessions must never show an application password prompt');
+  await page.unroute('**/api/session');
   assert.deepEqual(errors, []);
   console.log('PASS: macro editing; shared-entry editing without duplicates; retained drafts; invalid portions; timed notifications; offline sync; responsive tabs; live diary updates; full-screen sheets that the keyboard cannot move; fields lifted above the keyboard line on focus; AutoFill kept off food and diary fields; tab bar out of the way while typing; barcode entry; protected profile deletion; no uncaught errors.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }
